@@ -45,7 +45,7 @@ const Login = () => {
         setError(data.message || "Login failed");
       } else {
         localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify({
+        sessionStorage.setItem("user", JSON.stringify({
           role: data.role,
           name: data.name,
           email: data.email,

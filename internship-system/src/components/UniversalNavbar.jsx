@@ -103,7 +103,9 @@ const UniversalNavbar = ({ role, toggleSidebar }) => {
           <Menu size={20} />
         </button>
         <h1 className="text-lg font-semibold text-gray-800">
-          {getDashboardTitle(role)}
+          {userData?.name
+            ? `${userData.name}'s Dashboard`
+            : getDashboardTitle(role)}
         </h1>
       </div>
 

@@ -12,78 +12,12 @@ import {
   Briefcase,
   Home
 } from 'lucide-react';
+import axios from 'axios';
 
 const StudentManagement = () => {
   // Sample student data
-  const [students, setStudents] = useState([
-    { 
-      id: 1, 
-      name: "John Doe", 
-      regNumber: "IT249001", 
-      classNumber: "249", 
-      department: "IT", 
-      intake: "September 2023", 
-      attachmentStatus: "On Attachment", 
-      company: "Tech Solutions Ltd", 
-      supervisor: "Alice Kimani" 
-    },
-    { 
-      id: 2, 
-      name: "Jane Smith", 
-      regNumber: "IT249002", 
-      classNumber: "249", 
-      department: "IT", 
-      intake: "September 2023", 
-      attachmentStatus: "On Attachment", 
-      company: "Data Systems Inc", 
-      supervisor: "Alice Kimani" 
-    },
-    { 
-      id: 3, 
-      name: "Mike Johnson", 
-      regNumber: "AG245001", 
-      classNumber: "245", 
-      department: "Agriculture", 
-      intake: "May 2023", 
-      attachmentStatus: "Not Placed", 
-      company: "", 
-      supervisor: "" 
-    },
-    { 
-      id: 4, 
-      name: "Sarah Williams", 
-      regNumber: "EL240001", 
-      classNumber: "240", 
-      department: "Electrical", 
-      intake: "January 2023", 
-      attachmentStatus: "On Attachment", 
-      company: "Power Grid Co", 
-      supervisor: "Brian Otieno" 
-    },
-    { 
-      id: 5, 
-      name: "David Brown", 
-      regNumber: "BL252001", 
-      classNumber: "252", 
-      department: "Building", 
-      intake: "January 2024", 
-      attachmentStatus: "Completed", 
-      company: "Construct Ltd", 
-      supervisor: "Cynthia Wambui" 
-    },
-    { 
-      id: 6, 
-      name: "Emily Davis", 
-      regNumber: "LB248001", 
-      classNumber: "248", 
-      department: "Liberal", 
-      intake: "September 2023", 
-      attachmentStatus: "On Attachment", 
-      company: "Media House", 
-      supervisor: "Brian Otieno" 
-    },
-  ]);
-
+  const [students, setStudents] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -103,23 +37,39 @@ const StudentManagement = () => {
   // Status options
   const statusOptions = ['On Attachment', 'Not Placed', 'Completed'];
 
-  // Fetch data from API (example)
+  // Fetch data from API
   useEffect(() => {
     const fetchStudents = async () => {
       setLoading(true);
       try {
-        // Replace with actual API call
-        // const response = await fetch('/api/students');
-        // const data = await response.json();
-        // setStudents(data);
+        const token = localStorage.getItem('token');
+        const res = await axios.get('/api/students', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        // Ensure we always have an array
+        setStudents(Array.isArray(res.data) ? res.data : []);
       } catch (error) {
-        console.error('Error fetching students:', error);
+        console.error('Failed to fetch students:', error);
+        alert('Failed to load students data');
       } finally {
         setLoading(false);
       }
     };
 
+    const fetchTeachers = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get('/api/teachers', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setTeachers(res.data);
+      } catch (error) {
+        console.error('Failed to fetch teachers:', error);
+      }
+    };
+
     fetchStudents();
+    fetchTeachers();
   }, []);
 
   // Handle sorting
@@ -132,13 +82,13 @@ const StudentManagement = () => {
   };
 
   // Filter and sort students
-  const filteredStudents = students
-    .filter(student => {
+  const filteredStudents = Array.isArray(students) 
+    ? students.filter(student => {
       const matchesSearch = searchTerm === '' || 
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.regNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.supervisor.toLowerCase().includes(searchTerm.toLowerCase());
+        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.regNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.supervisor?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesDepartment = departmentFilter === 'all' || 
         student.department === departmentFilter;
@@ -147,8 +97,7 @@ const StudentManagement = () => {
         student.attachmentStatus === statusFilter;
       
       return matchesSearch && matchesDepartment && matchesStatus;
-    })
-    .sort((a, b) => {
+    }).sort((a, b) => {
       if (!sortConfig.key) return 0;
       
       if (a[sortConfig.key] < b[sortConfig.key]) {
@@ -158,20 +107,25 @@ const StudentManagement = () => {
         return sortConfig.direction === 'asc' ? 1 : -1;
       }
       return 0;
-    });
+    })
+    : [];
 
-  // Calculate summary statistics
-  const studentsOnAttachment = students.filter(s => s.attachmentStatus === 'On Attachment').length;
-  const studentsNotPlaced = students.filter(s => s.attachmentStatus === 'Not Placed').length;
-  const studentsCompleted = students.filter(s => s.attachmentStatus === 'Completed').length;
+  // Calculate statistics
+  const studentsOnAttachment = filteredStudents.filter(student => 
+    student.attachmentStatus === 'on_attachment' || student.attachmentStatus === 'approved'
+  ).length;
+
+  const studentsNotPlaced = filteredStudents.filter(student => 
+    student.attachmentStatus === 'pending' || student.attachmentStatus === 'rejected'
+  ).length;
 
   // Open edit modal
   const openEditModal = (student) => {
     setCurrentStudent(student);
     setFormData({
-      attachmentStatus: student.attachmentStatus,
-      company: student.company,
-      supervisor: student.supervisor
+      attachmentStatus: student.attachmentStatus || '',
+      company: student.company || '',
+      supervisor: student.supervisor || ''
     });
     setIsModalOpen(true);
   };
@@ -192,14 +146,26 @@ const StudentManagement = () => {
   };
 
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Update student data
-    const updatedStudents = students.map(student => 
-      student.id === currentStudent.id ? { ...student, ...formData } : student
-    );
-    setStudents(updatedStudents);
-    closeModal();
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`/api/students/${currentStudent.id}/assign-teacher`, {
+        teacherId: formData.supervisor
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Update local state
+      const updatedStudents = students.map(student => 
+        student.id === currentStudent.id ? { ...student, ...formData } : student
+      );
+      setStudents(updatedStudents);
+      closeModal();
+    } catch (error) {
+      console.error('Failed to update student:', error);
+      alert('Failed to update student information');
+    }
   };
 
   return (
@@ -224,7 +190,7 @@ const StudentManagement = () => {
             <Briefcase className="h-6 w-6 text-green-500 mr-2" />
             <h3 className="text-lg font-medium text-gray-700">On Attachment</h3>
           </div>
-          <p className="text-2xl font-bold mt-2">{studentsOnAttachment}</p>
+          <p className="text-2xl font-bold mt-2">{studentsOnAttachment || 0}</p>
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
@@ -232,7 +198,7 @@ const StudentManagement = () => {
             <Home className="h-6 w-6 text-purple-500 mr-2" />
             <h3 className="text-lg font-medium text-gray-700">Not Placed</h3>
           </div>
-          <p className="text-2xl font-bold mt-2">{studentsNotPlaced}</p>
+          <p className="text-2xl font-bold mt-2">{studentsNotPlaced || 0}</p>
         </div>
       </div>
 
@@ -474,14 +440,19 @@ const StudentManagement = () => {
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
-                <input
-                  type="text"
+                <select
                   name="supervisor"
                   value={formData.supervisor}
                   onChange={handleInputChange}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter supervisor name"
-                />
+                >
+                  <option value="">Select supervisor</option>
+                  {teachers.map(teacher => (
+                    <option key={teacher._id} value={teacher._id}>
+                      {teacher.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex justify-end space-x-3 mt-6">

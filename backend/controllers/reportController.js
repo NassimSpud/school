@@ -1,5 +1,6 @@
 import Report from '../models/reportModel.js';
 import { createNotification } from './notificationController.js';
+import User from '../models/userModel.js';
 
 // @desc    Submit attachment details
 // @route   POST /api/reports
@@ -21,17 +22,27 @@ export const submitReport = async (req, res) => {
       weeklyHours
     } = req.body;
 
-    // Check if student has a teacher assigned
-    if (!req.user.teacher) {
-      return res.status(400).json({ 
-        message: 'No teacher assigned to this student' 
-      });
+    // Verify student has a teacher assigned
+    const student = await User.findById(req.user._id);
+    if (!student || student.role !== 'student') {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Create new report with attachment details
+    // Get teacher information
+    const teacher = await User.findById(student.teacher);
+    if (!teacher || teacher.role !== 'teacher') {
+      return res.status(400).json({ message: 'No valid teacher assigned' });
+    }
+
+    // Verify department match
+    if (student.department !== teacher.department) {
+      return res.status(400).json({ message: 'Teacher and student must be in the same department' });
+    }
+
+    // Create new report
     const report = new Report({
-      student: req.user._id,
-      teacher: req.user.teacher,
+      student: student._id,
+      teacher: teacher._id,
       studentName,
       studentId,
       companyName,
@@ -47,27 +58,20 @@ export const submitReport = async (req, res) => {
       attachment: req.file ? req.file.filename : undefined
     });
 
-    // Save to database
-    const createdReport = await report.save();
+    // Save report
+    await report.save();
 
     // Create notification for teacher
-    await createNotification({
-      recipientId: req.user.teacher,
-      senderId: req.user._id,
+    await createNotification(teacher._id, {
       type: 'new_report',
-      title: 'New Attachment Details Submitted',
-      message: `${req.user.name} has submitted new attachment details for ${companyName}`,
-      relatedEntity: createdReport._id,
-      onModel: 'Report',
-      priority: 'high'
+      message: `New report submitted by ${studentName}`,
+      reportId: report._id
     });
 
-    // Return success response
     res.status(201).json({
-      success: true,
-      data: createdReport
+      message: 'Report submitted successfully',
+      report
     });
-
   } catch (error) {
     console.error('Report submission error:', error);
     
@@ -92,15 +96,64 @@ export const submitReport = async (req, res) => {
   }
 };
 
-// @desc    Get all reports for teacher
-// @route   GET /api/reports/teacher
-// @access  Private (Teacher)
-export const getTeacherReports = async (req, res) => {
+// @desc    Get all reports
+// @route   GET /api/reports
+// @access  Private (Admin/Teacher/Student)
+export const getAllReports = async (req, res) => {
   try {
-    const reports = await Report.find({ teacher: req.user._id })
-      .populate('student', 'name email schoolId')
-      .sort({ submittedAt: -1 });
+    const currentUser = await User.findById(req.user.id);
     
+    let query = {};
+    
+    // Students can only see their own reports
+    if (currentUser.role === 'student') {
+      query.student = currentUser._id;
+      return res.json(await Report.find(query)
+        .populate('teacher', 'name email department')
+        .select('-__v'));
+    }
+
+    // Teachers can see all reports from their students
+    if (currentUser.role === 'teacher') {
+      const students = await User.find({
+        role: 'student',
+        teacher: currentUser._id,
+        department: currentUser.department
+      });
+      
+      if (students.length === 0) {
+        return res.json([]);
+      }
+      
+      query.student = { $in: students.map(s => s._id) };
+      return res.json(await Report.find(query)
+        .populate('student teacher', 'name email department')
+        .select('-__v'));
+    }
+
+    // Admins (HODs) can see reports from their department
+    if (currentUser.role === 'admin' && currentUser.department) {
+      const students = await User.find({
+        role: 'student',
+        department: currentUser.department
+      });
+      
+      if (students.length === 0) {
+        return res.json([]);
+      }
+      
+      query.student = { $in: students.map(s => s._id) };
+      return res.json(await Report.find(query)
+        .populate('student teacher', 'name email department')
+        .select('-__v'));
+    }
+
+    // Super admins can see all reports
+    const reports = await Report.find()
+      .populate('student teacher', 'name email department')
+      .select('-__v');
+    
+    res.json(reports);
     res.json({
       success: true,
       count: reports.length,

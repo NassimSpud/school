@@ -24,40 +24,15 @@ const TeacherSupervisionManagement = () => {
   useEffect(() => {
     fetchTeachers();
   }, []);
-const fetchTeachers = async () => {
+
+  const fetchTeachers = async () => {
   setLoading(true);
   try {
-    // Simulated mock data for now
-    const mockData = [
-      {
-        id: 1,
-        name: "Alice Kimani",
-        email: "alice@school.com",
-        department: "Computer Science",
-        studentsSupervised: 10,
-        isSupervisor: true,
-        maxStudents: 15
-      },
-      {
-        id: 2,
-        name: "Brian Otieno",
-        email: "brian@school.com",
-        department: "Agriculture",
-        studentsSupervised: 0,
-        isSupervisor: false
-      },
-      {
-        id: 3,
-        name: "Cynthia Wambui",
-        email: "cynthia@school.com",
-        department: "Engineering",
-        studentsSupervised: 3,
-        isSupervisor: true,
-        maxStudents: 5
-      }
-    ];
-
-    setTeachers(mockData); // Set the mock data
+    const token = localStorage.getItem('token');
+    const res = await axios.get('/api/teachers', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setTeachers(res.data);
   } catch (error) {
     console.error('Failed to fetch teachers:', error);
     alert('Failed to load teachers data');

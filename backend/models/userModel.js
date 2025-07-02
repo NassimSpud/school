@@ -31,13 +31,27 @@ const userSchema = new mongoose.Schema({
     enum: ['admin', 'teacher', 'student'], 
     required: true 
   },
+  department: {
+    type: String,
+    required: function() { return this.role !== 'admin'; },
+    enum: ['IT', 'Engineering', 'Business', 'Science', 'Arts'],
+    uppercase: true
+  },
   students: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User',
+    department: {
+      type: String,
+      ref: 'User.department'
+    }
   }],
   teacher: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User',
+    department: {
+      type: String,
+      ref: 'User.department'
+    }
   }
 }, { timestamps: true });
 

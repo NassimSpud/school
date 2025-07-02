@@ -62,6 +62,12 @@ export const registerUser = async (req, res) => {
       });
     }
 
+    if (role !== 'student' && !req.body.department) {
+      return res.status(400).json({ 
+        message: 'Department is required for teachers/admins' 
+      });
+    }
+
     if (!password) {
       return res.status(400).json({ message: 'Password is required' });
     }
@@ -85,7 +91,8 @@ export const registerUser = async (req, res) => {
       email: role !== 'student' ? email : undefined,
       schoolId: role === 'student' ? schoolId : undefined,
       password,
-      role
+      role,
+      department: role !== 'student' ? req.body.department : undefined
     });
 
     // Generate token

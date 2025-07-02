@@ -87,9 +87,25 @@ const StudentAttachmentForm = () => {
     }
   };
 
-  const validateForm = () => {
+  const validateForm = async () => {
     const errors = {};
     
+    // Check if teacher is assigned
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const userResponse = await axios.get('/api/user/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!userResponse.data.teacher) {
+          errors.teacher = "No teacher assigned to this student. Please contact your administrator.";
+        }
+      } catch (error) {
+        console.error('Error checking teacher assignment:', error);
+        errors.teacher = "Failed to verify teacher assignment. Please try again later.";
+      }
+    }
+
     if (!formData.studentName.trim()) errors.studentName = "Student name is required";
     if (!formData.studentId.trim()) errors.studentId = "Student ID is required";
     if (!formData.companyName.trim()) errors.companyName = "Company name is required";
@@ -121,17 +137,27 @@ const StudentAttachmentForm = () => {
     setError(null);
     setServerValidationErrors({});
     
-    const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) {
-      setServerValidationErrors(validationErrors);
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('Authentication token not found');
+      }
+
+      // Check teacher assignment first
+      const userResponse = await axios.get('/api/user/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!userResponse.data.teacher) {
+        setError("No teacher assigned to this student. Please contact your administrator.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const validationErrors = await validateForm();
+      if (Object.keys(validationErrors).length > 0) {
+        setServerValidationErrors(validationErrors);
+        setIsSubmitting(false);
+        return;
       }
 
       // Prepare data with proper types
@@ -167,7 +193,7 @@ const StudentAttachmentForm = () => {
         setSubmitSuccess(true);
       }
     } catch (error) {
-      console.error("Submission error:", error);
+      console.error("Submission error:", error.response?.data || error.message);
       
       if (error.response) {
         // Handle server validation errors

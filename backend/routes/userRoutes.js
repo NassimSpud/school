@@ -3,9 +3,10 @@ import express from 'express';
 import { 
   getUserById,
   updateUser,
-  getTeacherDashboard
+  getTeacherDashboard,
+  assignTeacherToStudent
 } from '../controllers/userController.js';
-import { protect, teacher } from '../middleware/authMiddleware.js';
+import { protect, teacher, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -17,5 +18,8 @@ router.get('/teacher/dashboard', teacher, getTeacherDashboard);
 router.route('/:id')
   .get(getUserById)    // Get user profile
   .put(updateUser);    // Update user profile
+
+// Admin route to assign a teacher to a student
+router.put('/students/:studentId/assign-teacher', protect, admin, assignTeacherToStudent);
 
 export default router;

@@ -161,5 +161,40 @@ export const getTeacherDashboard = async (req, res) => {
   }
 };
 
+// Assign teacher to student (admin only)
+export const assignTeacher = async (req, res) => {
+  const { teacherId } = req.body;
+  const { studentId } = req.params;
+
+  try {
+    const student = await User.findById(studentId);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    student.teacher = teacherId;
+    await student.save();
+
+    res.json({ success: true, message: 'Teacher assigned successfully', student });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Keep your existing login/register functions
 export { loginUser, registerUser } from './authController.js';
+
+export const assignTeacherToStudent = async (req, res) => {
+  const { teacherId } = req.body;
+  const { studentId } = req.params;
+
+  try {
+    const student = await User.findById(studentId);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    student.teacher = teacherId;
+    await student.save();
+
+    res.json({ success: true, message: 'Teacher assigned successfully', student });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

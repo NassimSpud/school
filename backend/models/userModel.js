@@ -52,6 +52,10 @@ const userSchema = new mongoose.Schema({
       type: String,
       ref: 'User.department'
     }
+  },
+  profilePicture: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Attachment'
   }
 }, { timestamps: true });
 

@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { createServer } from 'http';
+import { initializeWebSocket } from './services/websocketService.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -14,6 +16,7 @@ import assignmentRoutes from './routes/assignmentRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import attachmentRoutes from './routes/attachmentRoutes.js';
 import homeworkRoutes from './routes/homeworkRoutes.js';
+import assessmentVisitRoutes from './routes/assessmentVisitRoutes.js';
 
 dotenv.config();
 
@@ -56,6 +59,7 @@ app.use('/api/assignments', assignmentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/attachments', attachmentRoutes);
 app.use('/api/homework', homeworkRoutes);
+app.use('/api/assessment-visits', assessmentVisitRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static(uploadsDir));
@@ -88,6 +92,17 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+
+// Create HTTP server
+const server = createServer(app);
+
+// Initialize WebSocket
+const io = initializeWebSocket(server);
+
+// Export io for use in controllers
+export { io };
+
+server.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  console.log(`WebSocket server initialized`);
 });

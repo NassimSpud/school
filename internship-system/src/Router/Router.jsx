@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
@@ -18,7 +17,6 @@ import { ProtectedRoute } from "../components/protectedroute";
 
 const AppRouter = () => {
   return (
-    <Router>
       <Routes>
         <Route path="/" element={<Login />} />
 
@@ -61,7 +59,6 @@ const AppRouter = () => {
         {/* Catch-all redirect */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
-    </Router>
   );
 };
 

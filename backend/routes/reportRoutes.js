@@ -7,6 +7,8 @@ import {
 } from '../controllers/reportController.js';
 import { protect, student, teacher } from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
+import User from '../models/userModel.js';
+import Report from '../models/reportModel.js';
 
 const router = express.Router();
 
@@ -47,13 +49,9 @@ router.get(
         .populate('teacher', 'name email')
         .sort({ createdAt: -1 });
 
-      // Get messages from teacher
-      const messages = await Message.find({
-        recipient: student._id,
-        sender: teacher._id
-      })
-      .populate('sender', 'name email')
-      .sort({ createdAt: -1 });
+      // For now, messages are handled through report feedback
+      // Future enhancement: implement separate messaging system
+      const messages = [];
 
       res.json({
         supervisor: teacher,

@@ -20,23 +20,34 @@ const TeacherDashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await axios.get('/api/users/teacher/dashboard', {
+      const response = await axios.get('http://localhost:4000/api/users/teacher/dashboard', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setDashboardData(response.data);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
+      // Set empty data to prevent null reference errors
+      setDashboardData({
+        totalStudents: 0,
+        nairobiStudents: 0,
+        pendingEvaluations: 0,
+        urgentIssues: 0,
+        recentStudents: [],
+        upcomingVisits: []
+      });
     }
   };
 
   const fetchNotifications = async () => {
     try {
-      const response = await axios.get('/api/notifications', {
+      const response = await axios.get('http://localhost:4000/api/notifications', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setNotifications(response.data);
     } catch (error) {
       console.error("Error fetching notifications:", error);
+      // Set empty notifications to prevent errors
+      setNotifications([]);
     }
   };
 
@@ -47,7 +58,7 @@ const TeacherDashboard = () => {
 
   const markNotificationAsRead = async (id) => {
     try {
-      await axios.put(`/api/notifications/${id}/read`, {}, {
+      await axios.put(`http://localhost:4000/api/notifications/${id}/read`, {}, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       fetchNotifications();
@@ -59,12 +70,14 @@ const TeacherDashboard = () => {
   const unreadNotificationsCount = notifications.filter(n => !n.isRead).length;
 
   // Filter students based on search and location
-  const filteredStudents = dashboardData.recentStudents
-    .filter(student =>
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.company.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .filter(student => newVisit.location ? student.location === newVisit.location : true);
+  const filteredStudents = dashboardData?.recentStudents
+    ? dashboardData.recentStudents
+        .filter(student =>
+          student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          student.company.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .filter(student => newVisit.location ? student.location === newVisit.location : true)
+    : [];
 
   const scheduleVisit = () => {
     // This function would need to be updated to work with the backend
@@ -162,25 +175,25 @@ const TeacherDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <DashboardCard
           title="Total Students"
-          value={dashboardData.totalStudents}
+          value={dashboardData?.totalStudents || 0}
           icon={<FiUsers className="text-blue-500" size={24} />}
           color="bg-blue-50"
         />
         <DashboardCard
           title="Nairobi Students"
-          value={dashboardData.nairobiStudents}
+          value={dashboardData?.nairobiStudents || 0}
           icon={<FiMapPin className="text-indigo-500" size={24} />}
           color="bg-indigo-50"
         />
         <DashboardCard
           title="Pending Evaluations"
-          value={dashboardData.pendingEvaluations}
+          value={dashboardData?.pendingEvaluations || 0}
           icon={<FiFileText className="text-orange-500" size={24} />}
           color="bg-orange-50"
         />
         <DashboardCard
           title="Urgent Issues"
-          value={dashboardData.urgentIssues}
+          value={dashboardData?.urgentIssues || 0}
           icon={<FiAlertCircle className="text-purple-500" size={24} />}
           color="bg-purple-50"
         />
@@ -354,11 +367,11 @@ const TeacherDashboard = () => {
           {/* Upcoming Visits */}
           <Section title="Upcoming Visits" icon={<FiCalendar size={20} />}>
             <div className="bg-white p-4 rounded-lg shadow">
-              {dashboardData.upcomingVisits.map(visit => {
-                const studentNames = dashboardData.recentStudents
-                  .filter(s => visit.students.includes(s.id))
-                  .map(s => s.name)
-                  .join(", ");
+              {dashboardData?.upcomingVisits?.map(visit => {
+                const studentNames = dashboardData?.recentStudents
+                  ?.filter(s => visit.students.includes(s.id))
+                  ?.map(s => s.name)
+                  ?.join(", ") || "No students";
                 
                 return (
                   <div key={visit.id} className="py-3 border-b border-gray-100 last:border-0">
@@ -370,14 +383,14 @@ const TeacherDashboard = () => {
                           <p><span className="font-medium">Date:</span> {new Date(visit.date).toLocaleDateString()}</p>
                           <p><span className="font-medium">Location:</span> {visit.location}</p>
                           <p><span className="font-medium">Students:</span> {studentNames}</p>
-                          <p><span className="font-medium">Companies:</span> {visit.companies.join(", ")}</p>
+                          <p><span className="font-medium">Companies:</span> {visit.companies?.join(", ") || "No companies"}</p>
                         </div>
                       </div>
                     </div>
                   </div>
                 );
-              })}
-              {dashboardData.upcomingVisits.length === 0 && (
+              }) || []}
+              {(!dashboardData?.upcomingVisits || dashboardData.upcomingVisits.length === 0) && (
                 <p className="text-gray-500 text-center py-4">No upcoming visits scheduled</p>
               )}
             </div>

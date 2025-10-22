@@ -148,6 +148,7 @@ export const getTeacherDashboard = async (req, res) => {
     // This is a placeholder. You might need a more complex query to get this data.
     const nairobiStudents = await User.countDocuments({ teacher: teacherId, location: 'Nairobi' });
     const urgentIssues = 0; // Placeholder
+    const upcomingVisits = []; // Placeholder for upcoming visits
 
     res.json({
       totalStudents,
@@ -155,6 +156,7 @@ export const getTeacherDashboard = async (req, res) => {
       pendingEvaluations,
       urgentIssues,
       recentStudents,
+      upcomingVisits,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

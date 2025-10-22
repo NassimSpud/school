@@ -10,7 +10,8 @@ const Login = () => {
     email: "",
     schoolId: "",
     password: "",
-    role: "student"
+    role: "student",
+    department: ""
   });
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [error, setError] = useState("");
@@ -107,9 +108,16 @@ const Login = () => {
 
   const handleRegisterChange = (e) => {
     const { name, value } = e.target;
+    let processedValue = value;
+    
+    // Convert schoolId to uppercase and remove invalid characters
+    if (name === 'schoolId') {
+      processedValue = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    }
+    
     setRegisterData(prev => ({
       ...prev,
-      [name]: value
+      [name]: processedValue
     }));
   };
 
@@ -194,6 +202,28 @@ const Login = () => {
                 </select>
               </div>
 
+              {registerData.role !== 'admin' && (
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-1">
+                    Department
+                  </label>
+                  <select
+                    name="department"
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500"
+                    value={registerData.department}
+                    onChange={handleRegisterChange}
+                    required={registerData.role !== 'admin'}
+                  >
+                    <option value="">Select Department</option>
+                    <option value="IT">IT</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Business">Business</option>
+                    <option value="Science">Science</option>
+                    <option value="Arts">Arts</option>
+                  </select>
+                </div>
+              )}
+
               {registerData.role === 'student' ? (
                 <div>
                   <label className="block text-gray-700 text-sm font-medium mb-1">
@@ -202,12 +232,17 @@ const Login = () => {
                   <input
                     type="text"
                     name="schoolId"
-                    placeholder="Enter your school ID"
+                    placeholder="Enter your school ID (e.g., STU123, ABC456)"
                     className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500"
                     value={registerData.schoolId}
                     onChange={handleRegisterChange}
                     required={registerData.role === 'student'}
+                    pattern="[A-Z0-9]+"
+                    title="School ID must contain only uppercase letters and numbers"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Use only uppercase letters and numbers (e.g., STU123, ABC456)
+                  </p>
                 </div>
               ) : (
                 <div>

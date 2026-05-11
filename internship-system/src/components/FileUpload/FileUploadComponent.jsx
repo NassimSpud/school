@@ -3,7 +3,7 @@ import { Upload, X, File, Image, FileText, Archive, Video, Music } from 'lucide-
 import axios from 'axios';
 
 const FileUploadComponent = ({
-  uploadType = 'assignment_submission',
+  uploadType = 'report_attachment',
   multiple = false,
   maxFiles = 5,
   maxSize = 50 * 1024 * 1024, // 50MB

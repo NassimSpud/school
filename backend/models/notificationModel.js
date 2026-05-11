@@ -13,7 +13,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['new_report', 'report_feedback', 'form_submission', 'assignment', 'system'],
+    enum: ['new_report', 'report_feedback', 'form_submission', 'assessment_visit', 'system'],
     required: true,
   },
   title: {
@@ -30,7 +30,7 @@ const notificationSchema = new mongoose.Schema({
   },
   onModel: {
     type: String,
-    enum: ['Report', 'Form', 'Assignment', null],
+    enum: ['Report', 'Form', 'AssessmentVisit', null],
   },
   isRead: {
     type: Boolean,

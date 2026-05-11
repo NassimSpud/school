@@ -14,25 +14,6 @@ const FILE_TYPES = {
     maxSize: 5 * 1024 * 1024, // 5MB
     maxFiles: 1
   },
-  assignment_submission: {
-    allowedTypes: [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'application/zip',
-      'application/x-rar-compressed',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ],
-    maxSize: 50 * 1024 * 1024, // 50MB
-    maxFiles: 10
-  },
   shared_document: {
     allowedTypes: [
       'application/pdf',
@@ -61,7 +42,7 @@ const FILE_TYPES = {
     maxSize: 25 * 1024 * 1024, // 25MB
     maxFiles: 5
   },
-  homework_file: {
+  logbook_entry: {
     allowedTypes: [
       'application/pdf',
       'application/msword',
@@ -79,7 +60,7 @@ const FILE_TYPES = {
 // Create upload directories
 const createUploadDirs = () => {
   const baseDir = path.join(__dirname, '..', 'uploads');
-  const dirs = ['profiles', 'assignments', 'documents', 'reports', 'homework', 'temp'];
+  const dirs = ['profiles', 'documents', 'reports', 'logbook', 'temp'];
   
   dirs.forEach(dir => {
     const fullPath = path.join(baseDir, dir);
@@ -102,17 +83,14 @@ const storage = multer.diskStorage({
       case 'profile_picture':
         folder = 'profiles';
         break;
-      case 'assignment_submission':
-        folder = 'assignments';
-        break;
       case 'shared_document':
         folder = 'documents';
         break;
       case 'report_attachment':
         folder = 'reports';
         break;
-      case 'homework_file':
-        folder = 'homework';
+      case 'logbook_entry':
+        folder = 'logbook';
         break;
     }
     
@@ -133,7 +111,7 @@ const storage = multer.diskStorage({
 
 // File filter function
 const fileFilter = (req, file, cb) => {
-  const uploadType = req.body.uploadType || req.params.uploadType || 'assignment_submission';
+  const uploadType = req.body.uploadType || req.params.uploadType || 'report_attachment';
   const config = FILE_TYPES[uploadType];
   
   if (!config) {

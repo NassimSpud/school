@@ -12,10 +12,8 @@ import { initializeWebSocket } from './services/websocketService.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
-import assignmentRoutes from './routes/assignmentRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import attachmentRoutes from './routes/attachmentRoutes.js';
-import homeworkRoutes from './routes/homeworkRoutes.js';
 import assessmentVisitRoutes from './routes/assessmentVisitRoutes.js';
 
 dotenv.config();
@@ -52,10 +50,8 @@ if (!fs.existsSync(uploadsDir)) {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/assignments', assignmentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/attachments', attachmentRoutes);
-app.use('/api/homework', homeworkRoutes);
 app.use('/api/assessment-visits', assessmentVisitRoutes);
 
 // Serve uploaded files

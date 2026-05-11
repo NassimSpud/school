@@ -1,17 +1,9 @@
 import {
   LineChart,
-  User,
-  Settings,
   Users,
-  Bell,
   BookOpen,
   Users as TeachersIcon,
-  Bookmark,
-  AlertCircle,
   Home,
-  Book,
-  CalendarCheck,
-  MessageSquare,
   FileText,
   ClipboardList,
 } from "lucide-react";
@@ -33,16 +25,6 @@ export const commonLinks = {
 export const roleBasedLinks = {
   admin: [
     {
-      path: "/admin/notices",
-      label: "Notices",
-      icon: <Bell size={18} />,
-    },
-    {
-      path: "/admin/classes",
-      label: "Classes",
-      icon: <Bookmark size={18} />,
-    },
-    {
       path: "/admin/teachers",
       label: "Teachers",
       icon: <TeachersIcon size={18} />,
@@ -53,17 +35,11 @@ export const roleBasedLinks = {
       icon: <Users size={18} />,
     },
   ],
-   teacher: [
-    { path: "/teacher/class", label: "My Classes", icon: <Bookmark size={18} /> },
-    { 
-      path: "/teacher/attachment-view", 
-      label: "Attachment View", 
-      icon: <BookOpen size={18} /> 
-    },
-    { 
-      path: "/teacher/attendance", 
-      label: "Attendance", 
-      icon: <CalendarCheck size={18} /> 
+  teacher: [
+    {
+      path: "/teacher/attachment-view",
+      label: "Attachment View",
+      icon: <BookOpen size={18} />,
     },
   ],
   student: [

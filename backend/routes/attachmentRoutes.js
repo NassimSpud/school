@@ -51,7 +51,7 @@ router.get('/search', searchAttachments);
 // Get attachment statistics
 router.get('/stats', getAttachmentStats);
 
-// Get attachments for a specific entity (homework, report, etc.)
+// Get attachments for a specific entity (report, logbook, etc.)
 router.get('/entity/:model/:entityId', getEntityAttachments);
 
 // Get specific attachment

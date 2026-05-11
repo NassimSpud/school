@@ -247,14 +247,12 @@ export const getUploadPath = (uploadType) => {
   switch (uploadType) {
     case 'profile_picture':
       return path.join(baseDir, 'profiles');
-    case 'assignment_submission':
-      return path.join(baseDir, 'assignments');
     case 'shared_document':
       return path.join(baseDir, 'documents');
     case 'report_attachment':
       return path.join(baseDir, 'reports');
-    case 'homework_file':
-      return path.join(baseDir, 'homework');
+    case 'logbook_entry':
+      return path.join(baseDir, 'logbook');
     default:
       return path.join(baseDir, 'temp');
   }
@@ -263,10 +261,9 @@ export const getUploadPath = (uploadType) => {
 // Get file URL
 export const getFileUrl = (filename, uploadType) => {
   const folder = uploadType === 'profile_picture' ? 'profiles' :
-                 uploadType === 'assignment_submission' ? 'assignments' :
                  uploadType === 'shared_document' ? 'documents' :
                  uploadType === 'report_attachment' ? 'reports' :
-                 uploadType === 'homework_file' ? 'homework' : 'temp';
+                 uploadType === 'logbook_entry' ? 'logbook' : 'temp';
   
   return `/uploads/${folder}/${filename}`;
 };

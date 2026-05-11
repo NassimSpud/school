@@ -38,7 +38,7 @@ const attachmentSchema = new mongoose.Schema({
   // Polymorphic association - can be linked to different models
   relatedModel: {
     type: String,
-    enum: ['User', 'SharedDocument', 'Report', 'LogbookEntry'],
+    enum: ['User', 'SharedDocument', 'Report', 'LogbookEntry', 'AssessmentVisit'],
     required: function() {
       return this.attachmentType !== 'profile_picture';
     }

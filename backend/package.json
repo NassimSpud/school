@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node server.js",
     "server": "nodemon server.js",
-    "debug": "NODE_OPTIONS='--enable-source-maps' nodemon server.js"
+    "debug": "nodemon --exec \"node --enable-source-maps\" server.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,154 +1,118 @@
-import User from '../models/userModel.js';
 import jwt from 'jsonwebtoken';
+import User from '../models/userModel.js';
 
-const generateToken = (id, role) => {
-  return jwt.sign({ id, role }, process.env.JWT_SECRET, {
-    expiresIn: '30d'
-  });
+const createToken = (user) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+
+  return jwt.sign(
+    { id: user._id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  );
 };
 
-export const loginUser = async (req, res) => {
-  const { email, schoolId, password } = req.body;
+const publicUser = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  schoolId: user.schoolId,
+  role: user.role,
+  department: user.department
+});
 
-  if (!password) {
-    return res.status(400).json({ message: 'Password is required' });
+export const loginUser = async (req, res) => {
+  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const schoolId = typeof req.body.schoolId === 'string' ? req.body.schoolId.trim().toUpperCase() : '';
+  const { password } = req.body;
+
+  if ((!email && !schoolId) || typeof password !== 'string' || !password) {
+    return res.status(400).json({ message: 'Email or school ID and password are required' });
   }
 
   try {
-    // Find user by email or schoolId and include the password field
-    const user = email 
-      ? await User.findOne({ email }).select('+password')
-      : await User.findOne({ schoolId }).select('+password');
-
-    if (!user) {
+    const user = await User.findOne(email ? { email } : { schoolId }).select('+password');
+    if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Check if password matches
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    // Create user object without password for response
-    const userWithoutPassword = user.toObject();
-    delete userWithoutPassword.password;
-
-    res.json({
-      ...userWithoutPassword,
-      token: generateToken(user._id, user.role)
+    return res.json({
+      ...publicUser(user),
+      token: createToken(user)
     });
-
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Server error during login' });
+    return res.status(500).json({ message: 'Server error during login' });
   }
 };
 
 export const registerUser = async (req, res) => {
-  const { name, email, schoolId, password, role, department } = req.body;
+  const { name, password } = req.body;
+  const role = typeof req.body.role === 'string' ? req.body.role.trim().toLowerCase() : '';
+  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const schoolId = typeof req.body.schoolId === 'string' ? req.body.schoolId.trim().toUpperCase() : '';
+  const department = typeof req.body.department === 'string' ? req.body.department.trim().toUpperCase() : '';
+
+  if (typeof name !== 'string' || !name.trim() || typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ message: 'Name and a password of at least 6 characters are required' });
+  }
+
+  if (!['student', 'teacher', 'admin'].includes(role)) {
+    return res.status(400).json({ message: 'Role must be student, teacher, or admin' });
+  }
+
+  if (role === 'admin' && process.env.ALLOW_ADMIN_REGISTRATION !== 'true') {
+    return res.status(403).json({ message: 'Admin accounts must be created by an administrator' });
+  }
+
+  if (role === 'student' && !schoolId) {
+    return res.status(400).json({ message: 'School ID is required for students' });
+  }
+
+  if (role !== 'student' && !email) {
+    return res.status(400).json({ message: 'Email is required for teachers and admins' });
+  }
+
+  if (role !== 'admin' && !department) {
+    return res.status(400).json({ message: 'Department is required' });
+  }
 
   try {
-    // Validate required fields based on role
-    if (role === 'student' && !schoolId) {
-      return res.status(400).json({ 
-        message: 'School ID is required for students' 
-      });
-    }
-    
-    if (role !== 'student' && !email) {
-      return res.status(400).json({ 
-        message: 'Email is required for teachers/admins' 
-      });
-    }
-
-    // Department is required for all roles except admin
-    if (role !== 'admin' && !department) {
-      return res.status(400).json({ 
-        message: 'Department is required' 
-      });
-    }
-
-    // Validate department enum
-    if (role !== 'admin' && department && !['IT', 'Engineering', 'Business', 'Science', 'Arts'].includes(department.toUpperCase())) {
-      return res.status(400).json({ 
-        message: 'Department must be one of: IT, Engineering, Business, Science, Arts' 
-      });
-    }
-
-    // Validate schoolId format for students
-    if (role === 'student' && schoolId && !/^[A-Z0-9]+$/.test(schoolId)) {
-      return res.status(400).json({ 
-        message: 'School ID must contain only uppercase letters and numbers (e.g., STU123, ABC456)' 
-      });
-    }
-
-    if (!password) {
-      return res.status(400).json({ message: 'Password is required' });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
-    }
-
-    // Check if user exists
-    const existingUser = role === 'student'
-      ? await User.findOne({ schoolId })
-      : await User.findOne({ email });
-
-    if (existingUser) {
-      return res.status(400).json({ 
+    const identifierQuery = role === 'student' ? { schoolId } : { email };
+    if (await User.exists(identifierQuery)) {
+      return res.status(409).json({
         message: role === 'student'
           ? 'Student with this School ID already exists'
           : 'User with this email already exists'
       });
     }
 
-    // Create user
     const user = await User.create({
-      name,
-      email: role !== 'student' ? email : undefined,
-      schoolId: role === 'student' ? schoolId.toUpperCase() : undefined,
+      name: name.trim(),
+      email: role === 'student' ? undefined : email,
+      schoolId: role === 'student' ? schoolId : undefined,
       password,
       role,
-      department: role !== 'admin' ? department.toUpperCase() : undefined
+      department: role === 'admin' ? undefined : department
     });
 
-    // Generate token
-    const token = generateToken(user._id, user.role);
-
-    res.status(201).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      schoolId: user.schoolId,
-      role: user.role,
-      department: user.department,
-      token
+    return res.status(201).json({
+      ...publicUser(user),
+      token: createToken(user)
     });
-
   } catch (error) {
-    console.error('Registration error:', error);
-    
-    // Handle mongoose validation errors
     if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ 
-        message: messages.join(', ')
+      return res.status(400).json({
+        message: Object.values(error.errors).map(({ message }) => message).join(', ')
       });
     }
 
-    // Handle duplicate key errors
     if (error.code === 11000) {
-      const field = Object.keys(error.keyValue)[0];
-      const value = error.keyValue[field];
-      return res.status(400).json({ 
-        message: `${field === 'schoolId' ? 'School ID' : 'Email'} '${value}' is already registered`
-      });
+      return res.status(409).json({ message: 'An account with that email or school ID already exists' });
     }
 
-    res.status(500).json({ 
-      message: error.message || 'Server error during registration' 
-    });
+    console.error('Registration error:', error);
+    return res.status(500).json({ message: 'Server error during registration' });
   }
 };

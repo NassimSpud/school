@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import loginImage from "../assets/designlogin.jpg";
+
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/+$/, "");
 
 const Login = () => {
   const [loginIdentifier, setLoginIdentifier] = useState("");
@@ -32,7 +35,7 @@ const Login = () => {
 
     try {
       const isEmail = loginIdentifier.includes('@');
-      const res = await fetch("http://localhost:4000/api/auth/login", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -55,7 +58,7 @@ const Login = () => {
         
         navigate(`/${data.role}/dashboard`);
       }
-    } catch (err) {
+    } catch {
       setError("Network error. Please try again.");
     }
     setLoading(false);
@@ -85,7 +88,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:4000/api/auth/register", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registerData),
@@ -100,7 +103,7 @@ const Login = () => {
         setIsRegistering(false);
         setError("Registration successful! Please login.");
       }
-    } catch (err) {
+    } catch {
       setError("Network error. Please try again.");
     }
     setLoading(false);
@@ -126,13 +129,9 @@ const Login = () => {
       {/* Left - Image */}
       <div className="hidden md:flex md:w-1/2 relative bg-gray-200">
         <img
-          src="https://portal.kitalenationalpolytechnic.ac.ke/uploads/5bed503c-0ea5-4e0d-aab4-5d1a26f3137c.jpg"
+          src={loginImage}
           alt="Campus"
           className="w-full h-full object-cover"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = "https://images.unsplash.com/photo-1562774053-701939374585?ixlib=rb-1.2.1&auto=format&fit=crop&w=1366&q=80";
-          }}
         />
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-8 text-center">
           <h2 className="text-white text-3xl font-bold leading-tight">
@@ -145,15 +144,6 @@ const Login = () => {
       <div className="w-full md:w-1/2 flex items-center justify-center bg-gray-50 p-4">
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
           <div className="text-center mb-6">
-            <img
-              src="https://portal.kitalenationalpolytechnic.ac.ke/uploads/635c3616-cea1-4640-aa9b-d8b9a8f6995e.png"
-              alt="Logo"
-              className="h-20 object-contain mx-auto"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "https://via.placeholder.com/150";
-              }}
-            />
             <h1 className="text-2xl font-bold text-red-800 mt-2">
               {isRegistering ? "User Registration" : "Welcome Back"}
             </h1>

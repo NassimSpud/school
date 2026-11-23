@@ -1,44 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FiCalendar, FiMail, FiPhone, FiAward, FiFileText, 
+  FiCalendar, FiMail, FiAward, FiFileText,
   FiAlertTriangle, FiUser, FiMapPin, FiClock, FiCheckCircle 
 } from 'react-icons/fi';
+import api from '../../../utils/api';
 
-const StudentDashboard = ({ attachmentDetails }) => {
+const StudentDashboard = () => {
+  const [attachmentDetails, setAttachmentDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [dashboardData, setDashboardData] = useState({
-    daysRemaining: 45,
-    upcomingDeadlines: [
-      { id: 2, title: "Mid-Term Evaluation", due: "2024-06-20", type: "evaluation" }
-    ],
-    recentReports: [
-      { id: 1, title: "Student Report", date: "2024-06-08", status: "approved" },
-    ],
-    announcements: [
-      { 
-        id: 1, 
-        title: "Supervisor Visit Scheduled", 
-        date: "2024-06-18", 
-        read: false,
-        type: "visit",
-        supervisor: "Dr. Jane Smith",
-        dateTime: "June 18, 2024 at 10:00 AM",
-        purpose: "Mid-term evaluation visit",
-        location: "Tech Solutions Ltd, Nairobi",
-        company: "Tech Solutions Ltd"
-      },
-      { 
-        id: 2, 
-        title: "Company Safety Training", 
-        date: "2024-06-05", 
-        read: true,
-        type: "general"
-      }
-    ]
+    daysRemaining: 0,
+    upcomingDeadlines: [],
+    recentReports: [],
+    announcements: []
   });
 
   // Calculate attachment progress
   const [attachmentProgress, setAttachmentProgress] = useState(0);
   
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      api.get('/api/ams/dashboard'),
+      api.get('/api/notifications')
+    ]).then(([dashboardResponse, notificationResponse]) => {
+      if (!active) return;
+      const { attachment, reports } = dashboardResponse.data;
+      setAttachmentDetails(attachment);
+      setDashboardData((current) => ({
+        ...current,
+        recentReports: reports.map((report) => ({
+          id: report.id,
+          title: report.title,
+          date: report.submittedAt,
+          companyReview: report.companyReview,
+          schoolReview: report.schoolReview
+        })),
+        announcements: notificationResponse.data.map((item) => ({
+          id: item.id,
+          title: item.title,
+          date: item.createdAt,
+          read: item.isRead,
+          message: item.message
+        }))
+      }));
+      setLoadError('');
+    }).catch((error) => {
+      if (active) setLoadError(error.response?.data?.message || 'Dashboard data could not be loaded.');
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (attachmentDetails?.startDate && attachmentDetails?.endDate) {
       const startDate = new Date(attachmentDetails.startDate);
@@ -48,7 +66,7 @@ const StudentDashboard = ({ attachmentDetails }) => {
       const totalDuration = endDate - startDate;
       const elapsedDuration = today - startDate;
       
-      let progress = Math.round((elapsedDuration / totalDuration) * 100);
+      let progress = totalDuration > 0 ? Math.round((elapsedDuration / totalDuration) * 100) : 0;
       progress = Math.min(100, Math.max(0, progress));
       setAttachmentProgress(progress);
       
@@ -61,13 +79,18 @@ const StudentDashboard = ({ attachmentDetails }) => {
   }, [attachmentDetails]);
 
   // Mark announcement as read
-  const markAsRead = (id) => {
-    setDashboardData(prev => ({
-      ...prev,
-      announcements: prev.announcements.map(ann => 
-        ann.id === id ? {...ann, read: true} : ann
-      )
-    }));
+  const markAsRead = async (id) => {
+    try {
+      await api.patch(`/api/notifications/${id}/read`);
+      setDashboardData((prev) => ({
+        ...prev,
+        announcements: prev.announcements.map((ann) => (
+          ann.id === id ? { ...ann, read: true } : ann
+        ))
+      }));
+    } catch (error) {
+      setLoadError(error.response?.data?.message || 'Notification could not be marked read.');
+    }
   };
 
   // Highlight upcoming visits
@@ -136,13 +159,17 @@ const StudentDashboard = ({ attachmentDetails }) => {
   const ReportItem = ({ report }) => (
     <div className="py-3 border-b border-gray-100 last:border-0">
       <p className="font-medium">{report.title}</p>
-      <div className="flex justify-between text-sm mt-1">
-        <span className="text-gray-500">Submitted: {report.date}</span>
-        <span className={`px-2 py-1 rounded text-xs ${
-          report.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-        }`}>
-          {report.status}
-        </span>
+      <p className="mt-1 text-sm text-gray-500">Submitted: {new Date(report.date).toLocaleDateString()}</p>
+      <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+        {[
+          ['Company supervisor', report.companyReview],
+          ['School supervisor', report.schoolReview]
+        ].map(([label, review]) => (
+          <div key={label} className="rounded bg-gray-50 p-2">
+            <p className="font-medium">{label}: {review.reviewed ? 'Reviewed' : 'Pending'}</p>
+            {review.comment && <p className="whitespace-pre-wrap text-gray-600">{review.comment}</p>}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -160,7 +187,8 @@ const StudentDashboard = ({ attachmentDetails }) => {
           <p className={`font-medium ${!announcement.read ? 'text-blue-800' : 'text-gray-700'}`}>
             {announcement.title}
           </p>
-          <p className="text-sm text-gray-500">Posted: {announcement.date}</p>
+          <p className="text-sm text-gray-600">{announcement.message}</p>
+          <p className="text-xs text-gray-500">Posted: {new Date(announcement.date).toLocaleString()}</p>
         </div>
       </div>
     </div>
@@ -200,6 +228,8 @@ const StudentDashboard = ({ attachmentDetails }) => {
         <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Student Dashboard</h1>
         <p className="text-gray-600">Welcome back! Here's your attachment progress</p>
       </div>
+      {loadError && <p role="alert" className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-700">{loadError}</p>}
+      {loading && <p className="mb-4 text-sm text-gray-500">Loading your attachment data...</p>}
 
       {/* Special Visit Notification Banner */}
       {upcomingVisits.length > 0 && (
@@ -271,11 +301,13 @@ const StudentDashboard = ({ attachmentDetails }) => {
           ></div>
         </div>
         {attachmentDetails && (
-          <div className="flex justify-between mt-2 text-sm text-gray-600">
-            <span>Start: {new Date(attachmentDetails.startDate).toLocaleDateString()}</span>
-            <span>End: {new Date(attachmentDetails.endDate).toLocaleDateString()}</span>
+          <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm text-gray-600">
+            <span>{attachmentDetails.company} · Company supervisor: {attachmentDetails.companySupervisor}</span>
+            <span>School supervisor: {attachmentDetails.schoolSupervisor || 'Not assigned'}</span>
+            <span>{new Date(attachmentDetails.startDate).toLocaleDateString()} – {new Date(attachmentDetails.endDate).toLocaleDateString()}</span>
           </div>
         )}
+        {!loading && !attachmentDetails && <p className="mt-2 text-sm text-gray-500">No active attachment yet.</p>}
       </div>
 
       {/* Main Content */}

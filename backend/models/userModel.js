@@ -1,87 +1,78 @@
-import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { supabase } from '../config/db.js';
 
-const userSchema = new mongoose.Schema({
-  name: { 
-    type: String, 
-    required: [true, 'Please add a name'] 
-  },
-  email: { 
-    type: String, 
-    unique: true,
-    sparse: true,
-    required: function() { return this.role !== 'student'; },
-    match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email']
-  },
-  schoolId: { 
-    type: String, 
-    unique: true,
-    sparse: true,
-    required: function() { return this.role === 'student'; },
-    match: [/^[A-Z0-9]+$/, 'Please use only uppercase letters and numbers']
-  },
-  password: { 
-    type: String, 
-    required: [true, 'Please add a password'],
-    minlength: 6,
-    select: false
-  },
-  role: { 
-    type: String, 
-    enum: ['admin', 'teacher', 'student'], 
-    required: true 
-  },
-  department: {
-    type: String,
-    required: function() { return this.role !== 'admin'; },
-    enum: ['IT', 'Engineering', 'Business', 'Science', 'Arts'],
-    uppercase: true
-  },
-  students: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    department: {
-      type: String,
-      ref: 'User.department'
-    }
-  }],
-  teacher: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    department: {
-      type: String,
-      ref: 'User.department'
-    }
-  },
-  profilePicture: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Attachment'
-  }
-}, { timestamps: true });
+const publicFields = 'id, name, email, school_id, role, department, teacher_id, profile_picture_id, created_at, updated_at';
 
-// Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    next();
-  }
-  
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
+const toUser = (row) => row && ({
+  _id: row.id,
+  id: row.id,
+  name: row.name,
+  email: row.email,
+  schoolId: row.school_id,
+  role: row.role,
+  department: row.department,
+  teacher: row.teacher_id,
+  profilePicture: row.profile_picture_id,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at
 });
 
-// Method to compare passwords
-userSchema.methods.matchPassword = async function(enteredPassword) {
-  if (!enteredPassword || !this.password) {
-    return false;
-  }
-  return await bcrypt.compare(enteredPassword, this.password);
+export const getUserById = async (id) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select(publicFields)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return toUser(data);
 };
 
-const User = mongoose.model('User', userSchema);
+export const findUserForLogin = async ({ email, schoolId }) => {
+  const column = email ? 'email' : 'school_id';
+  const identifier = email || schoolId;
+  const { data, error } = await supabase
+    .from('users')
+    .select(`${publicFields}, password_hash`)
+    .eq(column, identifier)
+    .maybeSingle();
 
-export default User;
+  if (error) throw error;
+  return data && {
+    ...toUser(data),
+    password: data.password_hash
+  };
+};
+
+export const createUser = async ({ name, email, schoolId, password, role, department }) => {
+  const passwordHash = await bcrypt.hash(password, 10);
+  const { data, error } = await supabase
+    .from('users')
+    .insert({
+      name,
+      email,
+      school_id: schoolId,
+      password_hash: passwordHash,
+      role,
+      department
+    })
+    .select(publicFields)
+    .single();
+
+  if (error) throw error;
+  return toUser(data);
+};
+
+export const clearUserProfilePicture = async (userId, attachmentId) => {
+  const { error } = await supabase
+    .from('users')
+    .update({ profile_picture_id: null })
+    .eq('id', userId)
+    .eq('profile_picture_id', attachmentId);
+
+  if (error) throw error;
+};
+
+export const matchPassword = (password, passwordHash) => (
+  bcrypt.compare(password, passwordHash)
+);

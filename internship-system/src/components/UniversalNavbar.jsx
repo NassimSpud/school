@@ -9,20 +9,13 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/authContext";
 
 const UniversalNavbar = ({ role, toggleSidebar }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [userData, setUserData] = useState(null);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
-
-  // Load user data from session storage on mount
-  useEffect(() => {
-    const storedUser = sessionStorage.getItem("user");
-    if (storedUser) {
-      setUserData(JSON.parse(storedUser));
-    }
-  }, []);
+  const { user: userData, logout } = useAuth();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -45,6 +38,7 @@ const UniversalNavbar = ({ role, toggleSidebar }) => {
       customer: { name: "Customer", color: "bg-blue-600" },
       advisor: { name: "Advisor", color: "bg-green-600" },
       teacher: { name: "Teacher", color: "bg-yellow-600" },
+      company_supervisor: { name: "Company Supervisor", color: "bg-green-600" },
       student: { name: "Student", color: "bg-red-600" },
     };
 
@@ -83,12 +77,12 @@ const UniversalNavbar = ({ role, toggleSidebar }) => {
   };
 
   const handleProfileClick = () => {
-    navigate(`/${role}/profile`);
+    const routeRole = role === "company_supervisor" ? "company-supervisor" : role;
+    navigate(`/${routeRole}/profile`);
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem("user");
-    navigate("/login");
+    logout();
   };
 
   return (

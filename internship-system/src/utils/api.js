@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -11,7 +11,7 @@ const api = axios.create({
 
 // Add token to requests if available
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
@@ -20,40 +20,24 @@ api.interceptors.request.use((config) => {
 
 // User API endpoints
 export const fetchUsers = async () => {
-    try {
-        const response = await api.get('/api/admin/users');
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
+    const response = await api.get('/api/admin/users');
+    return response.data;
 };
 
 export const fetchUserById = async (id) => {
-    try {
-        const response = await api.get(`/api/admin/users/${id}`);
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
+    const response = await api.get(`/api/admin/users/${id}`);
+    return response.data;
 };
 
 // Student Attendance API endpoints
 export const fetchStudentAttendance = async (classId) => {
-    try {
-        const response = await api.get(`/api/attendance/${classId}`);
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
+    const response = await api.get(`/api/attendance/${classId}`);
+    return response.data;
 };
 
 export const updateAttendance = async (attendanceData) => {
-    try {
-        const response = await api.post('/api/attendance/update', attendanceData);
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
+    const response = await api.post('/api/attendance/update', attendanceData);
+    return response.data;
 };
 
 export default api;

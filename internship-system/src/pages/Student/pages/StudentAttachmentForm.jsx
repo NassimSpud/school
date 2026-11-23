@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../../utils/api";
+import { useAuth } from "../../../context/authContext";
 
 const StudentAttachmentForm = () => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     studentName: "",
     studentId: "",
@@ -23,12 +25,9 @@ const StudentAttachmentForm = () => {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [error, setError] = useState(null);
   const [serverValidationErrors, setServerValidationErrors] = useState({});
+  const [applications, setApplications] = useState([]);
 
   useEffect(() => {
-    calculateProgress();
-  }, [formData]);
-
-  const calculateProgress = () => {
     const requiredFields = [
       "studentName",
       "studentId",
@@ -41,13 +40,24 @@ const StudentAttachmentForm = () => {
       "endDate",
       "weeklyHours",
     ];
-
     const filledFields = requiredFields.filter(
       (field) => formData[field] && formData[field].toString().trim() !== ""
     ).length;
-
     setProgress(Math.round((filledFields / requiredFields.length) * 100));
-  };
+  }, [formData]);
+
+  useEffect(() => {
+    setFormData((current) => ({
+      ...current,
+      studentName: user?.name || "",
+      studentId: user?.schoolId || ""
+    }));
+    api.get('/api/ams/applications')
+      .then(({ data }) => setApplications(data))
+      .catch((requestError) => {
+        setError(requestError.response?.data?.message || 'Could not load your attachment applications.');
+      });
+  }, [user]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -87,24 +97,8 @@ const StudentAttachmentForm = () => {
     }
   };
 
-  const validateForm = async () => {
+  const validateForm = () => {
     const errors = {};
-    
-    // Check if teacher is assigned
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const userResponse = await axios.get('/api/user/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!userResponse.data.teacher) {
-          errors.teacher = "No teacher assigned to this student. Please contact your administrator.";
-        }
-      } catch (error) {
-        console.error('Error checking teacher assignment:', error);
-        errors.teacher = "Failed to verify teacher assignment. Please try again later.";
-      }
-    }
 
     if (!formData.studentName.trim()) errors.studentName = "Student name is required";
     if (!formData.studentId.trim()) errors.studentId = "Student ID is required";
@@ -138,32 +132,14 @@ const StudentAttachmentForm = () => {
     setServerValidationErrors({});
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication token not found');
-      }
-
-      // Check teacher assignment first
-      const userResponse = await axios.get('/api/user/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!userResponse.data.teacher) {
-        setError("No teacher assigned to this student. Please contact your administrator.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      const validationErrors = await validateForm();
+      const validationErrors = validateForm();
       if (Object.keys(validationErrors).length > 0) {
         setServerValidationErrors(validationErrors);
         setIsSubmitting(false);
         return;
       }
 
-      // Prepare data with proper types
       const submissionData = {
-        studentName: formData.studentName.trim(),
-        studentId: formData.studentId.trim(),
         companyName: formData.companyName.trim(),
         location: formData.location.trim(),
         verifiedLocation: formData.verifiedLocation.trim(),
@@ -171,27 +147,14 @@ const StudentAttachmentForm = () => {
         supervisorName: formData.supervisorName.trim(),
         supervisorContact: formData.supervisorContact.trim(),
         supervisorEmail: formData.supervisorEmail.trim(),
-        startDate: new Date(formData.startDate).toISOString(),
-        endDate: new Date(formData.endDate).toISOString(),
+        startDate: formData.startDate,
+        endDate: formData.endDate,
         weeklyHours: Number(formData.weeklyHours)
       };
 
-      console.log('Submitting data:', submissionData); // Debug log
-
-      const response = await axios.post(
-        'http://localhost:4000/api/reports',
-        submissionData,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-
-      if (response.status === 200 || response.status === 201) {
-        setSubmitSuccess(true);
-      }
+      const { data } = await api.post('/api/ams/applications', submissionData);
+      setApplications((current) => [data.application, ...current]);
+      setSubmitSuccess(true);
     } catch (error) {
       console.error("Submission error:", error.response?.data || error.message);
       
@@ -213,7 +176,7 @@ const StudentAttachmentForm = () => {
           setError("Server error. Please try again later.");
         }
         else {
-          setError("Submission failed. Please try again.");
+          setError(error.response.data.message || "Submission failed. Please try again.");
         }
       } else if (error.request) {
         setError("Network error. Please check your internet connection.");
@@ -233,14 +196,14 @@ const StudentAttachmentForm = () => {
           Submission Successful!
         </h1>
         <p className="text-gray-600 mb-6">
-          Your attachment details have been successfully submitted.
+          Your application was submitted and is waiting for administrator review.
         </p>
         <button
           onClick={() => {
             setSubmitSuccess(false);
             setFormData({
-              studentName: "",
-              studentId: "",
+              studentName: user?.name || "",
+              studentId: user?.schoolId || "",
               companyName: "",
               location: "",
               verifiedLocation: "",
@@ -311,7 +274,7 @@ const StudentAttachmentForm = () => {
               type="text"
               name="studentName"
               value={formData.studentName}
-              onChange={handleChange}
+              readOnly
               className={`w-full px-4 py-2 border ${serverValidationErrors.studentName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring focus:ring-blue-200`}
             />
             {serverValidationErrors.studentName && (
@@ -326,7 +289,7 @@ const StudentAttachmentForm = () => {
               type="text"
               name="studentId"
               value={formData.studentId}
-              onChange={handleChange}
+              readOnly
               className={`w-full px-4 py-2 border ${serverValidationErrors.studentId ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring focus:ring-blue-200`}
             />
             {serverValidationErrors.studentId && (
@@ -523,6 +486,19 @@ const StudentAttachmentForm = () => {
           </button>
         </div>
       </form>
+      {applications.length > 0 && (
+        <section className="mt-8 border-t pt-6">
+          <h2 className="mb-3 text-lg font-semibold text-gray-800">Your attachment applications</h2>
+          <ul className="space-y-2">
+            {applications.map((application) => (
+              <li key={application.id} className="flex items-center justify-between rounded-lg bg-gray-50 p-3 text-sm">
+                <span>{application.company_name || application.companyName || "Company application"}</span>
+                <span className="font-medium capitalize">{application.status}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 };

@@ -3,9 +3,11 @@ import {
   FiUsers, FiFileText, FiAlertCircle,
   FiCalendar, FiSearch, FiMapPin, FiBell
 } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../../../utils/api';
+import { useAuth } from '../../../context/authContext';
 
 const TeacherDashboard = () => {
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -17,26 +19,24 @@ const TeacherDashboard = () => {
     location: "Nairobi",
     students: []
   });
+  const [reviewComments, setReviewComments] = useState({});
+  const [requestError, setRequestError] = useState('');
 
   const fetchDashboardData = async () => {
     try {
-      const response = await axios.get('/api/users/teacher/dashboard', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.get('/api/ams/supervisor/dashboard');
       setDashboardData(response.data);
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
+      setRequestError(error.response?.data?.message || 'Could not load supervised attachment data.');
     }
   };
 
   const fetchNotifications = async () => {
     try {
-      const response = await axios.get('/api/notifications', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.get('/api/notifications');
       setNotifications(response.data);
     } catch (error) {
-      console.error("Error fetching notifications:", error);
+      setRequestError(error.response?.data?.message || 'Could not load notifications.');
     }
   };
 
@@ -47,19 +47,54 @@ const TeacherDashboard = () => {
 
   const markNotificationAsRead = async (id) => {
     try {
-      await axios.put(`/api/notifications/${id}/read`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await api.patch(`/api/notifications/${id}/read`);
       fetchNotifications();
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      setRequestError(error.response?.data?.message || 'Could not update notification.');
+    }
+  };
+
+  const reviewLogbook = async (entryId, decision) => {
+    try {
+      await api.patch(`/api/ams/logbook/${entryId}/review`, {
+        decision,
+        comment: reviewComments[entryId] || ''
+      });
+      await fetchDashboardData();
+    } catch (error) {
+      setRequestError(error.response?.data?.message || 'Could not review the logbook entry.');
+    }
+  };
+
+  const reviewReport = async (report) => {
+    try {
+      await api.patch(`/api/ams/reports/${report.id}/review`, {
+        comment: reviewComments[report.id] || ''
+      });
+      await fetchDashboardData();
+    } catch (error) {
+      setRequestError(error.response?.data?.message || 'Could not review the report.');
+    }
+  };
+
+  const downloadReport = async (report) => {
+    try {
+      const { data } = await api.get(report.file.downloadUrl, { responseType: 'blob' });
+      const objectUrl = URL.createObjectURL(data);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = report.file.originalName;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      setRequestError(error.response?.data?.message || 'Could not download the report.');
     }
   };
 
   const unreadNotificationsCount = notifications.filter(n => !n.isRead).length;
 
   // Filter students based on search and location
-  const filteredStudents = dashboardData.recentStudents
+  const filteredStudents = (dashboardData?.recentStudents || [])
     .filter(student =>
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.company.toLowerCase().includes(searchTerm.toLowerCase())
@@ -110,7 +145,7 @@ const TeacherDashboard = () => {
   if (!dashboardData) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-8 flex items-center justify-center">
-        <p className="text-gray-500">Loading dashboard...</p>
+        <p className="text-gray-500">{requestError || 'Loading dashboard...'}</p>
       </div>
     );
   }
@@ -124,6 +159,7 @@ const TeacherDashboard = () => {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Internship Supervisor Dashboard</h1>
             <p className="text-gray-600">Overview of student attachments</p>
           </div>
+          {requestError && <p role="alert" className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-700">{requestError}</p>}
           <div className="relative">
             <button onClick={() => setShowNotifications(!showNotifications)} className="relative">
               <FiBell size={24} className="text-gray-600" />
@@ -143,7 +179,7 @@ const TeacherDashboard = () => {
                       className={`p-4 border-b ${!notification.isRead ? 'bg-blue-50' : ''}`}
                       onClick={() => !notification.isRead && markNotificationAsRead(notification._id)}
                     >
-                      <p className="font-semibold">{notification.sender.name}</p>
+                      <p className="font-semibold">{notification.title}</p>
                       <p className="text-sm text-gray-600">{notification.message}</p>
                       <p className="text-xs text-gray-400">{new Date(notification.createdAt).toLocaleString()}</p>
                     </div>
@@ -184,6 +220,109 @@ const TeacherDashboard = () => {
           icon={<FiAlertCircle className="text-purple-500" size={24} />}
           color="bg-purple-50"
         />
+      </div>
+
+      <div className="grid gap-6 mb-8 lg:grid-cols-2">
+        <Section title="Logbook entries" icon={<FiFileText size={20} />}>
+          <div className="space-y-3">
+            {(dashboardData.logbookEntries || []).map((entry) => (
+              <article key={entry.id} className="rounded-lg bg-white p-4 shadow">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <div>
+                    <h3 className="font-semibold">{entry.studentName} · {entry.date}</h3>
+                    <p className="text-sm text-gray-500">{entry.company} · {entry.department}</p>
+                  </div>
+                  <span className="text-sm font-medium capitalize">{entry.status}</span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{entry.tasks}</p>
+                {entry.comment && <p className="mt-2 rounded bg-gray-50 p-2 text-sm text-gray-600">Supervisor comment: {entry.comment}</p>}
+                {user?.role === 'company_supervisor' && entry.status === 'pending' && (
+                  <div className="mt-3 space-y-2">
+                    <textarea
+                      value={reviewComments[entry.id] || ''}
+                      onChange={(event) => setReviewComments((current) => ({ ...current, [entry.id]: event.target.value }))}
+                      placeholder="Optional comment"
+                      className="w-full rounded border p-2 text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => reviewLogbook(entry.id, 'approved')} className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white">Approve</button>
+                      <button onClick={() => reviewLogbook(entry.id, 'rejected')} className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white">Reject</button>
+                    </div>
+                  </div>
+                )}
+              </article>
+            ))}
+            {!dashboardData.logbookEntries?.length && <p className="rounded bg-white p-4 text-sm text-gray-500 shadow">No logbook entries.</p>}
+          </div>
+        </Section>
+
+        <Section title="Attachment reports" icon={<FiFileText size={20} />}>
+          <div className="space-y-3">
+            {(dashboardData.reports || []).map((report) => {
+              const review = user?.role === 'company_supervisor' ? report.companyReview : report.schoolReview;
+              return (
+                <article key={report.id} className="rounded-lg bg-white p-4 shadow">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-semibold">{report.title}</h3>
+                      <p className="text-sm text-gray-500">{report.periodStart} – {report.periodEnd}</p>
+                      {report.file && (
+                        <button onClick={() => downloadReport(report)} className="mt-1 text-sm text-blue-700 underline">
+                          {report.file.originalName}
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-600">{review.reviewed ? 'Reviewed' : 'Review pending'}</span>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                    <p>Company: {report.companyReview.reviewed ? 'Reviewed' : 'Pending'}{report.companyReview.comment ? ` — ${report.companyReview.comment}` : ''}</p>
+                    <p>School: {report.schoolReview.reviewed ? 'Reviewed' : 'Pending'}{report.schoolReview.comment ? ` — ${report.schoolReview.comment}` : ''}</p>
+                  </div>
+                  {!review.reviewed && (
+                    <div className="mt-3 space-y-2">
+                      <textarea
+                        value={reviewComments[report.id] || ''}
+                        onChange={(event) => setReviewComments((current) => ({ ...current, [report.id]: event.target.value }))}
+                        placeholder="Optional review comment"
+                        className="w-full rounded border p-2 text-sm"
+                      />
+                      <button onClick={() => reviewReport(report)} className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">
+                        Mark reviewed
+                      </button>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+            {!dashboardData.reports?.length && <p className="rounded bg-white p-4 text-sm text-gray-500 shadow">No reports submitted.</p>}
+          </div>
+        </Section>
+      </div>
+
+      <div className="mb-8">
+        <Section title="Weekly summaries" icon={<FiFileText size={20} />}>
+          <div className="space-y-3">
+            {(dashboardData.weeklySummaries || []).map((summary) => (
+              <article key={summary.id} className="rounded-lg bg-white p-4 shadow">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <div>
+                    <h3 className="font-semibold">{summary.studentName} · Week {summary.weekNumber}</h3>
+                    <p className="text-sm text-gray-500">Placement week summary</p>
+                  </div>
+                  <span className="text-sm font-medium capitalize">{summary.status}</span>
+                </div>
+                <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <div><dt className="font-semibold">Key activities</dt><dd className="whitespace-pre-wrap">{summary.details.activities || '—'}</dd></div>
+                  <div><dt className="font-semibold">Skills acquired</dt><dd className="whitespace-pre-wrap">{summary.details.skills || '—'}</dd></div>
+                  <div><dt className="font-semibold">Challenges</dt><dd className="whitespace-pre-wrap">{summary.details.challenges || '—'}</dd></div>
+                  <div><dt className="font-semibold">Supervisor comments</dt><dd className="whitespace-pre-wrap">{summary.details.supervisorComments || '—'}</dd></div>
+                </dl>
+                <p className="mt-2 text-xs text-gray-500">Submitted {new Date(summary.createdAt).toLocaleString()}</p>
+              </article>
+            ))}
+            {!dashboardData.weeklySummaries?.length && <p className="rounded bg-white p-4 text-sm text-gray-500 shadow">No weekly summaries submitted.</p>}
+          </div>
+        </Section>
       </div>
 
       {/* Schedule Visit Button */}

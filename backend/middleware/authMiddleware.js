@@ -1,5 +1,9 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js';
+import { getUserById } from '../models/userModel.js';
+import {
+  findCompanySupervisorByUserId,
+  hasCurrentPlacement
+} from '../models/companySupervisorModel.js';
 
 // Protect routes
 export const protect = async (req, res, next) => {
@@ -13,12 +17,44 @@ export const protect = async (req, res, next) => {
     return res.status(401).json({ message: 'Not authorized, no token' });
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select('-password');
-    next();
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(401).json({ message: 'Not authorized, token failed' });
+  }
+
+  try {
+    if (decoded.role === 'company_supervisor') {
+      const supervisor = await findCompanySupervisorByUserId(decoded.id);
+      if (!supervisor) {
+        return res.status(401).json({ message: 'Not authorized, user not found' });
+      }
+
+      if (!(await hasCurrentPlacement(supervisor.id))) {
+        return res.status(403).json({ message: 'No active placement is currently assigned to this account' });
+      }
+
+      req.user = {
+        _id: supervisor.user_id,
+        id: supervisor.user_id,
+        role: 'company_supervisor',
+        name: supervisor.name,
+        email: supervisor.email,
+        companyId: supervisor.company_id,
+        companySupervisorId: supervisor.id
+      };
+    } else {
+      req.user = await getUserById(decoded.id);
+      if (!req.user) {
+        return res.status(401).json({ message: 'Not authorized, user not found' });
+      }
+    }
+
+    return next();
   } catch (error) {
-    res.status(401).json({ message: 'Not authorized, token failed' });
+    console.error('Authentication lookup error:', error);
+    return res.status(500).json({ message: 'Unable to verify user account' });
   }
 };
 

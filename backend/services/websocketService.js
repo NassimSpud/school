@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js';
+import { getUserById } from '../models/userModel.js';
 
 let io;
 
@@ -25,7 +25,7 @@ export const initializeWebSocket = (server) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('-password');
+      const user = await getUserById(decoded.id);
       
       if (!user) {
         return next(new Error('Authentication error: User not found'));

@@ -180,21 +180,26 @@ export const validateUpload = (uploadType) => {
     }
     
     // Check file count
-    const fileCount = req.files ? req.files.length : 0;
+    const files = req.files || (req.file ? [req.file] : []);
+    const fileCount = files.length;
     if (fileCount > config.maxFiles) {
+      files.forEach((file) => {
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      });
       return res.status(400).json({ 
         message: `Too many files. Maximum ${config.maxFiles} files allowed for ${uploadType}` 
       });
     }
     
     // Check individual file sizes
-    if (req.files) {
-      for (const file of req.files) {
-        if (file.size > config.maxSize) {
+    for (const file of files) {
+      if (file.size > config.maxSize) {
+        files.forEach((uploadedFile) => {
+          if (fs.existsSync(uploadedFile.path)) fs.unlinkSync(uploadedFile.path);
+        });
           return res.status(400).json({ 
             message: `File ${file.originalname} is too large. Maximum size: ${Math.round(config.maxSize / (1024 * 1024))}MB` 
           });
-        }
       }
     }
     
@@ -204,13 +209,14 @@ export const validateUpload = (uploadType) => {
 
 // Security middleware to scan files (basic implementation)
 export const scanFiles = async (req, res, next) => {
-  if (!req.files || req.files.length === 0) {
+  const files = req.files || (req.file ? [req.file] : []);
+  if (files.length === 0) {
     return next();
   }
   
   try {
     // Basic security checks
-    for (const file of req.files) {
+    for (const file of files) {
       // Check for suspicious file extensions in filename
       const suspiciousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com', '.vbs', '.js'];
       const filename = file.originalname.toLowerCase();
@@ -233,7 +239,7 @@ export const scanFiles = async (req, res, next) => {
     }
     
     // Mark files as scanned (in a real implementation, you'd use a proper antivirus)
-    req.files.forEach(file => {
+    files.forEach(file => {
       file.scanResult = 'clean';
       file.isScanned = true;
     });
@@ -243,13 +249,9 @@ export const scanFiles = async (req, res, next) => {
     console.error('File scanning error:', error);
     
     // Clean up uploaded files on error
-    if (req.files) {
-      req.files.forEach(file => {
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
-      });
-    }
+    files.forEach((file) => {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    });
     
     res.status(500).json({ message: 'File scanning failed' });
   }
@@ -257,13 +259,10 @@ export const scanFiles = async (req, res, next) => {
 
 // Cleanup middleware for failed uploads
 export const cleanupOnError = (err, req, res, next) => {
-  if (req.files) {
-    req.files.forEach(file => {
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
-    });
-  }
+  const files = req.files || (req.file ? [req.file] : []);
+  files.forEach((file) => {
+    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+  });
   next(err);
 };
 

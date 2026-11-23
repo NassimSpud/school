@@ -8,6 +8,9 @@ import fs from 'fs';
 import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import attachmentRoutes from './routes/attachmentRoutes.js';
+import amsRoutes from './routes/amsRoutes.js';
+import adminAmsRoutes from './routes/adminAmsRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 
 dotenv.config();
 
@@ -19,7 +22,7 @@ const app = express();
 // CORS Configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
@@ -37,8 +40,14 @@ if (!fs.existsSync(uploadsDir)) {
 // Authentication and attachment APIs
 app.use('/api/auth', authRoutes);
 app.use('/api/attachments', attachmentRoutes);
+app.use('/api/ams', amsRoutes);
+app.use('/api/admin', adminAmsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Serve uploaded files
+app.use('/uploads/reports', (req, res) => (
+  res.status(403).json({ message: 'Report files must be accessed through the authenticated report endpoint' })
+));
 app.use('/uploads', express.static(uploadsDir));
 
 // Health check endpoint

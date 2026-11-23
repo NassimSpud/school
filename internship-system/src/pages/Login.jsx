@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/authContext";
 import loginImage from "../assets/designlogin.jpg";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:4000").replace(/\/+$/, "");
 
-const Login = () => {
+const Login = ({ adminOnly = false }) => {
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +22,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -34,7 +36,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const isEmail = loginIdentifier.includes('@');
+      const isEmail = adminOnly || loginIdentifier.includes('@');
       const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -47,16 +49,15 @@ const Login = () => {
       const data = await res.json();
       if (!res.ok) {
         setError(data.message || "Login failed");
+      } else if (adminOnly && data.role !== "admin") {
+        setError("This sign-in page is for administrators only.");
+      } else if (!adminOnly && data.role === "admin") {
+        setError("Administrators must sign in using Admin Auth.");
       } else {
-        localStorage.setItem("token", data.token);
-        sessionStorage.setItem("user", JSON.stringify({
-          role: data.role,
-          name: data.name,
-          email: data.email,
-          schoolId: data.schoolId
-        }));
-        
-        navigate(`/${data.role}/dashboard`);
+        login(data.token, data, true);
+        navigate(data.role === 'company_supervisor'
+          ? '/company-supervisor/dashboard'
+          : `/${data.role}/dashboard`);
       }
     } catch {
       setError("Network error. Please try again.");
@@ -145,10 +146,18 @@ const Login = () => {
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold text-red-800 mt-2">
-              {isRegistering ? "User Registration" : "Welcome Back"}
+              {isRegistering
+                ? "User Registration"
+                : adminOnly
+                  ? "Administrator Sign In"
+                  : "Welcome Back"}
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              {isRegistering ? "Create your account" : "Please enter your credentials to login"}
+              {isRegistering
+                ? "Create your account"
+                : adminOnly
+                  ? "Sign in to the administrator portal"
+                  : "Please enter your credentials to login"}
             </p>
           </div>
 
@@ -188,7 +197,6 @@ const Login = () => {
                 >
                   <option value="student">Student</option>
                   <option value="teacher">Teacher</option>
-                  <option value="admin">Admin</option>
                 </select>
               </div>
 
@@ -323,11 +331,11 @@ const Login = () => {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-gray-700 text-sm font-medium mb-1">
-                  {loginIdentifier.includes('@') ? 'Email' : 'School ID'}
+                  {adminOnly || loginIdentifier.includes('@') ? 'Email' : 'School ID'}
                 </label>
                 <input
-                  type={loginIdentifier.includes('@') ? 'email' : 'text'}
-                  placeholder={loginIdentifier.includes('@') ? 'Enter your email' : 'Enter your school ID'}
+                  type={adminOnly || loginIdentifier.includes('@') ? 'email' : 'text'}
+                  placeholder={adminOnly || loginIdentifier.includes('@') ? 'Enter your email' : 'Enter your school ID'}
                   className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500"
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
@@ -403,7 +411,7 @@ const Login = () => {
             </form>
           )}
 
-          <p className="mt-4 text-center text-sm text-gray-600">
+          {!adminOnly && <p className="mt-4 text-center text-sm text-gray-600">
             {isRegistering ? (
               <>
                 Already have an account?{' '}
@@ -425,7 +433,22 @@ const Login = () => {
                 </button>
               </>
             )}
-          </p>
+          </p>}
+
+          {adminOnly ? (
+            <p className="mt-5 text-center text-sm text-gray-600">
+              Not an administrator?{" "}
+              <Link to="/" className="text-red-700 hover:underline">
+                Return to sign in
+              </Link>
+            </p>
+          ) : !isRegistering && (
+            <p className="mt-5 text-center text-sm text-gray-500">
+              <Link to="/admin/login" className="hover:text-red-700 hover:underline">
+                Admin Auth
+              </Link>
+            </p>
+          )}
 
           <div className="mt-6 text-center text-sm text-gray-500">
             <p>© 2025 Your Institution. All rights reserved.</p>

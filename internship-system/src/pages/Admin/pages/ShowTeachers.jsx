@@ -1,54 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search,
   ChevronUp,
-  ChevronDown,
-  UserPlus,
-  UserMinus,
-  Edit2
+  ChevronDown
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../../../utils/api';
 
 const TeacherSupervisionManagement = () => {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentTeacher, setCurrentTeacher] = useState(null);
-  const [formData, setFormData] = useState({
-    isSupervisor: false,
-    maxStudents: 5
-  });
+
+  const fetchTeachers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/api/admin/school-supervisors');
+      setTeachers(data.map((supervisor) => ({
+        ...supervisor,
+        studentsSupervised: supervisor.students.length,
+        isSupervisor: true
+      })));
+    } catch (error) {
+      console.error('Failed to fetch school supervisors:', error);
+      alert(error.response?.data?.message || 'Failed to load school supervisors');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchTeachers();
-  }, []);
-
-  const fetchTeachers = async () => {
-  setLoading(true);
-  try {
-    const token = localStorage.getItem('token');
-    const res = await axios.get('/api/teachers', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    setTeachers(res.data);
-  } catch (error) {
-    console.error('Failed to fetch teachers:', error);
-    alert('Failed to load teachers data');
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
+  }, [fetchTeachers]);
 
   const requestSort = (key) => {
     let direction = 'asc';
@@ -73,44 +56,14 @@ const TeacherSupervisionManagement = () => {
         })
     : [];
 
-  const showSupervisorModal = (teacher) => {
-    setCurrentTeacher(teacher);
-    setFormData({
-      isSupervisor: teacher.isSupervisor || false,
-      maxStudents: teacher.maxStudents || 5
-    });
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setCurrentTeacher(null);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      await axios.put(`/api/admin/teachers/${currentTeacher.id}/supervisor`, formData);
-      alert('Supervisor assignment updated successfully');
-      fetchTeachers();
-      closeModal();
-    } catch (error) {
-      console.error('Failed to update supervisor:', error);
-      alert('Failed to update supervisor assignment');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <>
       <div className="container mx-auto px-4 py-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-1">
-          Teacher Supervision Management
+          School Supervisor Assignments
         </h2>
         <p className="text-gray-600 mb-6">
-          Assign teachers as supervisors for students on attachment
+          View school supervisors and their assigned students
         </p>
 
         <div className="mb-4 w-full md:w-96">
@@ -162,8 +115,7 @@ const TeacherSupervisionManagement = () => {
                         ))}
                     </div>
                   </th>
-                  <th className="px-6 py-3">Supervisor Status</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
+                  <th className="px-6 py-3">Assigned Students</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 text-sm">
@@ -183,58 +135,16 @@ const TeacherSupervisionManagement = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        {teacher.isSupervisor ? (
-                          <span className="bg-green-100 text-green-800 px-2 py-1 text-xs rounded">
-                            Active Supervisor
-                          </span>
-                        ) : (
-                          <span className="bg-gray-200 text-gray-800 px-2 py-1 text-xs rounded">
-                            Not Assigned
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end space-x-2">
-                          <button
-                            onClick={() => showSupervisorModal(teacher)}
-                            className={`px-2 py-1 text-xs rounded flex items-center ${
-                              teacher.isSupervisor
-                                ? "bg-orange-100 text-orange-800 hover:bg-orange-200"
-                                : "bg-green-100 text-green-800 hover:bg-green-200"
-                            }`}
-                          >
-                            {teacher.isSupervisor ? (
-                              <Edit2 className="w-3 h-3 mr-1" />
-                            ) : (
-                              <UserPlus className="w-3 h-3 mr-1" />
-                            )}
-                            {teacher.isSupervisor ? "Edit" : "Assign"}
-                          </button>
-                          {teacher.isSupervisor && (
-                            <button
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    `Remove ${teacher.name} as supervisor?`
-                                  )
-                                ) {
-                                  // handleRemoveSupervisor(teacher.id); // implement if needed
-                                }
-                              }}
-                              className="px-2 py-1 text-xs rounded bg-red-100 text-red-800 hover:bg-red-200 flex items-center"
-                            >
-                              <UserMinus className="w-3 h-3 mr-1" />
-                              Remove
-                            </button>
-                          )}
-                        </div>
+                        <div>{teacher.students.length
+                          ? teacher.students.map((student) => student.name).join(', ')
+                          : 'No students assigned'}</div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td
-                      colSpan="5"
+                      colSpan="4"
                       className="px-6 py-4 text-center text-gray-500"
                     >
                       No teachers found
@@ -246,63 +156,6 @@ const TeacherSupervisionManagement = () => {
           </div>
         )}
       </div>
-      {isModalOpen && currentTeacher && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={closeModal}
-          ></div>
-          <div className="fixed inset-0 z-50 flex itopacityems-center justify-center">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative">
-              <h3 className="text-lg font-semibold mb-4">
-                Assign Supervisor Role
-              </h3>
-              <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">
-                    Is Supervisor
-                  </label>
-                  <input
-                    type="checkbox"
-                    name="isSupervisor"
-                    checked={formData.isSupervisor}
-                    onChange={handleInputChange}
-                    className="h-4 w-4"
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">
-                    Max Students
-                  </label>
-                  <input
-                    type="number"
-                    name="maxStudents"
-                    value={formData.maxStudents}
-                    onChange={handleInputChange}
-                    className="w-full border rounded px-2 py-1"
-                  />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
-                    disabled={loading}
-                  >
-                    Save
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </>
-      )}
     </>
   );
 };

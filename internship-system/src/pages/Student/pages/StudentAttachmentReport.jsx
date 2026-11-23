@@ -1,155 +1,150 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import api from '../../../utils/api';
 
 const StudentAttachmentReport = () => {
-    const [report, setReport] = useState({
-        week: '',
-        progress: '',
-        challenges: '',
-        lessonsLearned: '',
-        supervisorFeedback: '',
-        rating: 0
-    });
+  const [title, setTitle] = useState('');
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
+  const [file, setFile] = useState(null);
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-    const [submitted, setSubmitted] = useState(false);
+  const loadReports = async () => {
+    try {
+      const { data } = await api.get('/api/ams/reports');
+      setReports(data);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Could not load your reports.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setReport(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
+  useEffect(() => {
+    loadReports();
+  }, []);
 
-    const handleRatingChange = (value) => {
-        setReport(prev => ({
-            ...prev,
-            rating: value
-        }));
-    };
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!file) {
+      setError('Choose a report file to upload.');
+      return;
+    }
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        // Here you would typically send the data to your backend
-        console.log('Report submitted:', report);
-        setSubmitted(true);
-        // Reset form after 3 seconds
-        setTimeout(() => {
-            setSubmitted(false);
-            setReport({
-                week: '',
-                progress: '',
-                challenges: '',
-                lessonsLearned: '',
-                supervisorFeedback: '',
-                rating: 0
-            });
-        }, 3000);
-    };
+    setUploading(true);
+    setError('');
+    setSuccess('');
+    const body = new FormData();
+    body.append('title', title.trim());
+    body.append('periodStart', periodStart);
+    body.append('periodEnd', periodEnd);
+    body.append('file', file);
 
-    return (
-        <div className="container mx-auto px-4 py-8 max-w-3xl">
-            <h1 className="text-2xl font-bold text-center mb-6">Attachment Progress Report</h1>
-            
-            {submitted && (
-                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                    Report submitted successfully!
-                </div>
-            )}
+    try {
+      const { data } = await api.post('/api/ams/reports', body, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setReports((current) => [data, ...current]);
+      setTitle('');
+      setPeriodStart('');
+      setPeriodEnd('');
+      setFile(null);
+      event.target.reset();
+      setSuccess('Report uploaded and shared with both supervisors.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Report upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
-            <form onSubmit={handleSubmit} className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-                <div className="mb-4">
-                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="progress">
-                        Progress Made
-                    </label>
-                    <textarea
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline h-32"
-                        id="progress"
-                        name="progress"
-                        placeholder="Describe what you've accomplished during this period..."
-                        value={report.progress}
-                        onChange={handleChange}
-                        required
-                    />
-                </div>
+  const downloadReport = async (report) => {
+    try {
+      const { data } = await api.get(report.file.downloadUrl, { responseType: 'blob' });
+      const objectUrl = URL.createObjectURL(data);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = report.file.originalName;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Report download failed.');
+    }
+  };
 
-                <div className="mb-4">
-                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="challenges">
-                        Challenges Faced
-                    </label>
-                    <textarea
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline h-32"
-                        id="challenges"
-                        name="challenges"
-                        placeholder="Describe any challenges you encountered..."
-                        value={report.challenges}
-                        onChange={handleChange}
-                    />
-                </div>
+  return (
+    <div className="container mx-auto max-w-3xl px-4 py-8">
+      <h1 className="mb-2 text-2xl font-bold text-gray-800">Attachment Progress Report</h1>
+      <p className="mb-6 text-sm text-gray-600">Upload a periodic or final report. Both supervisors can review it independently.</p>
 
-                <div className="mb-4">
-                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="lessonsLearned">
-                        Lessons Learned
-                    </label>
-                    <textarea
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline h-32"
-                        id="lessonsLearned"
-                        name="lessonsLearned"
-                        placeholder="What did you learn from this period?"
-                        value={report.lessonsLearned}
-                        onChange={handleChange}
-                    />
-                </div>
+      {error && <p role="alert" className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-red-700">{error}</p>}
+      {success && <p role="status" className="mb-4 rounded border border-green-300 bg-green-50 px-4 py-3 text-green-700">{success}</p>}
 
-                <div className="mb-4">
-                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="supervisorFeedback">
-                        Supervisor's Feedback (if any)
-                    </label>
-                    <textarea
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline h-32"
-                        id="supervisorFeedback"
-                        name="supervisorFeedback"
-                        placeholder="Any feedback from your supervisor?"
-                        value={report.supervisorFeedback}
-                        onChange={handleChange}
-                    />
-                </div>
-
-                <div className="mb-6">
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                        Overall Experience Rating
-                    </label>
-                    <div className="flex items-center">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                                key={star}
-                                type="button"
-                                className={`text-2xl ${star <= report.rating ? 'text-yellow-500' : 'text-gray-300'}`}
-                                onClick={() => handleRatingChange(star)}
-                            >
-                                ★
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                    <button
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-                        type="submit"
-                    >
-                        Submit Report
-                    </button>
-                </div>
-            </form>
-
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-                <p className="text-blue-700">
-                    <strong>Note:</strong> Please submit your weekly/monthly attachment progress reports regularly. 
-                    This helps us track your experience and provide support where needed.
-                </p>
-            </div>
+      <form onSubmit={handleSubmit} className="mb-8 space-y-4 rounded bg-white p-6 shadow">
+        <div>
+          <label htmlFor="report-title" className="mb-1 block text-sm font-medium text-gray-700">Report title</label>
+          <input id="report-title" value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={200} className="w-full rounded border px-3 py-2" />
         </div>
-    );
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="period-start" className="mb-1 block text-sm font-medium text-gray-700">Period start</label>
+            <input id="period-start" type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} required className="w-full rounded border px-3 py-2" />
+          </div>
+          <div>
+            <label htmlFor="period-end" className="mb-1 block text-sm font-medium text-gray-700">Period end</label>
+            <input id="period-end" type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} required className="w-full rounded border px-3 py-2" />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="report-file" className="mb-1 block text-sm font-medium text-gray-700">Report file (PDF, DOC/DOCX, image, or spreadsheet; max 25 MB)</label>
+          <input id="report-file" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx" onChange={(event) => setFile(event.target.files?.[0] || null)} required className="block w-full text-sm" />
+        </div>
+        <button type="submit" disabled={uploading} className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+          {uploading ? 'Uploading...' : 'Submit report'}
+        </button>
+      </form>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold text-gray-800">Submitted reports</h2>
+        {loading ? <p className="text-gray-500">Loading reports...</p> : reports.length === 0 ? (
+          <p className="rounded bg-white p-4 text-gray-500 shadow">No reports submitted yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {reports.map((report) => (
+              <article key={report.id} className="rounded bg-white p-4 shadow">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{report.title}</h3>
+                    <p className="text-sm text-gray-600">{report.periodStart} – {report.periodEnd}</p>
+                    {report.file && (
+                      <button type="button" className="mt-1 inline-block text-sm text-blue-700 underline" onClick={() => downloadReport(report)}>
+                        {report.file.originalName}
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500">Submitted {new Date(report.submittedAt).toLocaleDateString()}</span>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {[
+                    ['Company supervisor', report.companyReview],
+                    ['School supervisor', report.schoolReview]
+                  ].map(([label, review]) => (
+                    <div key={label} className="rounded border p-3">
+                      <p className="font-medium">{label}: {review.reviewed ? 'Reviewed' : 'Pending'}</p>
+                      {review.comment && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">{review.comment}</p>}
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
 };
 
 export default StudentAttachmentReport;

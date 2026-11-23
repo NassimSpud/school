@@ -9,7 +9,7 @@ export const ProtectedRoute = ({ roles, redirectTo = '/login' }) => {
   }
 
   if (roles && !roles.includes(user?.role)) {
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;

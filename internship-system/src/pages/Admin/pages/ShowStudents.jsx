@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
   UserPlus, 
@@ -12,7 +12,7 @@ import {
   Briefcase,
   Home
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../../../utils/api';
 
 const StudentManagement = () => {
   // Sample student data
@@ -32,45 +32,46 @@ const StudentManagement = () => {
   });
 
   // Departments for filter dropdown
-  const departments = ['IT', 'Agriculture', 'Electrical', 'Liberal', 'Building'];
+  const departments = [...new Set(students.map((student) => student.department).filter(Boolean))];
   
   // Status options
-  const statusOptions = ['On Attachment', 'Not Placed', 'Completed'];
+  const statusOptions = ['On Attachment', 'Not Placed', 'Upcoming', 'Completed', 'Cancelled'];
+
+  const loadAdminData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [overviewResponse, supervisorsResponse] = await Promise.all([
+        api.get('/api/admin/attachments'),
+        api.get('/api/admin/school-supervisors')
+      ]);
+      setStudents(overviewResponse.data.students.map((student) => ({
+        ...student,
+        regNumber: student.registrationNumber || '',
+        classNumber: student.className,
+        supervisor: student.schoolSupervisor || '',
+        supervisorId: student.schoolSupervisorId || '',
+        attachmentStatus: student.attachmentStatus === 'Active'
+          ? 'On Attachment'
+          : student.attachmentStatus === 'No active attachment'
+            ? 'Not Placed'
+            : student.attachmentStatus
+      })));
+      setTeachers(supervisorsResponse.data.map((supervisor) => ({
+        _id: supervisor.id,
+        name: supervisor.name
+      })));
+    } catch (error) {
+      console.error('Failed to load admin student data:', error);
+      alert('Failed to load student data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Fetch data from API
   useEffect(() => {
-    const fetchStudents = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get('/api/students', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        // Ensure we always have an array
-        setStudents(Array.isArray(res.data) ? res.data : []);
-      } catch (error) {
-        console.error('Failed to fetch students:', error);
-        alert('Failed to load students data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const fetchTeachers = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get('/api/teachers', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setTeachers(res.data);
-      } catch (error) {
-        console.error('Failed to fetch teachers:', error);
-      }
-    };
-
-    fetchStudents();
-    fetchTeachers();
-  }, []);
+    loadAdminData();
+  }, [loadAdminData]);
 
   // Handle sorting
   const requestSort = (key) => {
@@ -112,11 +113,11 @@ const StudentManagement = () => {
 
   // Calculate statistics
   const studentsOnAttachment = filteredStudents.filter(student => 
-    student.attachmentStatus === 'on_attachment' || student.attachmentStatus === 'approved'
+    student.attachmentStatus === 'On Attachment'
   ).length;
 
   const studentsNotPlaced = filteredStudents.filter(student => 
-    student.attachmentStatus === 'pending' || student.attachmentStatus === 'rejected'
+    student.attachmentStatus === 'Not Placed'
   ).length;
 
   // Open edit modal
@@ -125,7 +126,7 @@ const StudentManagement = () => {
     setFormData({
       attachmentStatus: student.attachmentStatus || '',
       company: student.company || '',
-      supervisor: student.supervisor || ''
+      supervisor: student.supervisorId || ''
     });
     setIsModalOpen(true);
   };
@@ -149,22 +150,19 @@ const StudentManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
-      await axios.put(`/api/students/${currentStudent.id}/assign-teacher`, {
-        teacherId: formData.supervisor
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
+      if (!formData.supervisor) {
+        alert('Select a school supervisor before saving');
+        return;
+      }
+      await api.post('/api/admin/assignments', {
+        studentIds: [currentStudent.id],
+        schoolSupervisorId: formData.supervisor
       });
-
-      // Update local state
-      const updatedStudents = students.map(student => 
-        student.id === currentStudent.id ? { ...student, ...formData } : student
-      );
-      setStudents(updatedStudents);
+      await loadAdminData();
       closeModal();
     } catch (error) {
       console.error('Failed to update student:', error);
-      alert('Failed to update student information');
+      alert(error.response?.data?.message || 'Failed to assign school supervisor');
     }
   };
 
@@ -417,8 +415,8 @@ const StudentManagement = () => {
                 <select
                   name="attachmentStatus"
                   value={formData.attachmentStatus}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
                 >
                   {statusOptions.map(status => (
                     <option key={status} value={status}>{status}</option>
@@ -432,9 +430,8 @@ const StudentManagement = () => {
                   type="text"
                   name="company"
                   value={formData.company}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter company name"
+                  readOnly
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100"
                 />
               </div>
 

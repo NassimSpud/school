@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../utils/api';
 import {
   Bell,
   FileText,
@@ -18,23 +18,18 @@ const NotificationsPage = () => {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['notifications', page],
     queryFn: async () => {
-      const response = await axios.get('/api/notifications', {
-        params: { page, limit: 10 },
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('token')}`,
-        },
-      });
-      return response.data;
+      const { data: notifications } = await api.get('/api/notifications');
+      const start = (page - 1) * 10;
+      return {
+        notifications: notifications.slice(start, start + 10),
+        totalPages: Math.ceil(notifications.length / 10)
+      };
     },
   });
 
   const markAsReadMutation = useMutation({
     mutationFn: async (id) => {
-      await axios.put(`/api/notifications/${id}/read`, {}, {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('token')}`,
-        },
-      });
+      await api.patch(`/api/notifications/${id}/read`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['notifications']);
@@ -44,11 +39,9 @@ const NotificationsPage = () => {
 
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      await axios.put('/api/notifications/mark-all-read', {}, {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('token')}`,
-        },
-      });
+      await Promise.all((data?.notifications || [])
+        .filter((notification) => !notification.isRead)
+        .map((notification) => api.patch(`/api/notifications/${notification._id}/read`)));
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['notifications']);

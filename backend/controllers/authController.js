@@ -1,5 +1,15 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js';
+import {
+  createUser,
+  findUserForLogin,
+  matchPassword
+} from '../models/userModel.js';
+import { supabase } from '../config/db.js';
+import {
+  findCompanySupervisorByEmail,
+  hasCurrentPlacement,
+  markCompanySupervisorAccepted
+} from '../models/companySupervisorModel.js';
 
 const createToken = (user) => {
   if (!process.env.JWT_SECRET) {
@@ -7,7 +17,7 @@ const createToken = (user) => {
   }
 
   return jwt.sign(
-    { id: user._id, role: user.role },
+    { id: user.id, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
@@ -15,11 +25,13 @@ const createToken = (user) => {
 
 const publicUser = (user) => ({
   _id: user._id,
+  id: user.id,
   name: user.name,
   email: user.email,
   schoolId: user.schoolId,
   role: user.role,
-  department: user.department
+  department: user.department,
+  companyId: user.companyId
 });
 
 export const loginUser = async (req, res) => {
@@ -32,14 +44,55 @@ export const loginUser = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne(email ? { email } : { schoolId }).select('+password');
-    if (!user || !(await user.matchPassword(password))) {
+    const user = await findUserForLogin({ email, schoolId });
+    if (user) {
+      if (!(await matchPassword(password, user.password))) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
+
+      return res.json({
+        ...publicUser(user),
+        token: createToken(user)
+      });
+    }
+
+    if (!email) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    const companySupervisor = await findCompanySupervisorByEmail(email);
+    if (!companySupervisor?.user_id) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    if (authError || authData.user?.id !== companySupervisor.user_id) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    if (!(await hasCurrentPlacement(companySupervisor.id))) {
+      return res.status(403).json({ message: 'No active placement is currently assigned to this account' });
+    }
+
+    if (authData.user.email_confirmed_at && !companySupervisor.accepted_at) {
+      await markCompanySupervisorAccepted(companySupervisor.id);
+    }
+
+    const supervisorUser = {
+      _id: authData.user.id,
+      id: authData.user.id,
+      name: companySupervisor.name,
+      email: companySupervisor.email,
+      role: 'company_supervisor',
+      companyId: companySupervisor.company_id
+    };
+
     return res.json({
-      ...publicUser(user),
-      token: createToken(user)
+      ...publicUser(supervisorUser),
+      token: createToken(supervisorUser)
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -79,22 +132,13 @@ export const registerUser = async (req, res) => {
   }
 
   try {
-    const identifierQuery = role === 'student' ? { schoolId } : { email };
-    if (await User.exists(identifierQuery)) {
-      return res.status(409).json({
-        message: role === 'student'
-          ? 'Student with this School ID already exists'
-          : 'User with this email already exists'
-      });
-    }
-
-    const user = await User.create({
+    const user = await createUser({
       name: name.trim(),
-      email: role === 'student' ? undefined : email,
-      schoolId: role === 'student' ? schoolId : undefined,
+      email: role === 'student' ? null : email,
+      schoolId: role === 'student' ? schoolId : null,
       password,
       role,
-      department: role === 'admin' ? undefined : department
+      department: role === 'admin' ? null : department
     });
 
     return res.status(201).json({
@@ -102,14 +146,16 @@ export const registerUser = async (req, res) => {
       token: createToken(user)
     });
   } catch (error) {
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({
-        message: Object.values(error.errors).map(({ message }) => message).join(', ')
+    if (error.code === '23505') {
+      return res.status(409).json({
+        message: role === 'student'
+          ? 'Student with this School ID already exists'
+          : 'User with this email already exists'
       });
     }
 
-    if (error.code === 11000) {
-      return res.status(409).json({ message: 'An account with that email or school ID already exists' });
+    if (error.code === '23514' || error.code === '23502' || error.code === '22001') {
+      return res.status(400).json({ message: error.message });
     }
 
     console.error('Registration error:', error);

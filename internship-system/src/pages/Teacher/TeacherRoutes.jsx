@@ -8,7 +8,7 @@ export const TeacherRoutes = [
   { index: true, element: <TeacherHomePage /> },
   { path: "dashboard", element: <TeacherHomePage /> },
   { path: "profile", element: <TeacherProfile /> },
-  { path: "attachment view", element: <TeacherAttachmentView /> },
+  { path: "attachment-view", element: <TeacherAttachmentView /> },
 
   // Class routes
   { path: "class", element: <TeacherClassDetails /> },

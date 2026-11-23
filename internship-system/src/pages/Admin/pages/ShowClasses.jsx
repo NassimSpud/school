@@ -1,36 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { Building, Users, Calendar, ChevronUp, ChevronDown, Search, Filter } from 'lucide-react';
+import api from '../../../utils/api';
 
 const ShowClasses = () => {
-    // Sample data - replace with actual API calls
-    const [classes, setClasses] = useState([
-        { id: 1, classNumber: '249', department: 'IT', intake: 'September 2023', studentsOnAttachment: 15, totalStudents: 30 },
-        { id: 2, classNumber: '251', department: 'IT', intake: 'January 2024', studentsOnAttachment: 12, totalStudents: 28 },
-        { id: 3, classNumber: '245', department: 'Agriculture', intake: 'May 2023', studentsOnAttachment: 8, totalStudents: 25 },
-        { id: 4, classNumber: '240', department: 'Electrical', intake: 'January 2023', studentsOnAttachment: 20, totalStudents: 35 },
-        { id: 5, classNumber: '252', department: 'Building', intake: 'January 2024', studentsOnAttachment: 5, totalStudents: 18 },
-        { id: 6, classNumber: '248', department: 'Liberal', intake: 'September 2023', studentsOnAttachment: 10, totalStudents: 22 },
-    ]);
-
+    const [classes, setClasses] = useState([]);
+    const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-    // Departments for filter dropdown
-    const departments = ['IT', 'Agriculture', 'Electrical', 'Liberal', 'Building', 'Other'];
-
-    // Fetch data from API (example)
     useEffect(() => {
         const fetchClasses = async () => {
             setLoading(true);
             try {
-                // Replace with actual API call
-                // const response = await fetch('/api/classes');
-                // const data = await response.json();
-                // setClasses(data);
+                const [classesResponse, overviewResponse, departmentsResponse] = await Promise.all([
+                    api.get('/api/admin/classes'),
+                    api.get('/api/admin/attachments'),
+                    api.get('/api/admin/departments')
+                ]);
+                const students = overviewResponse.data.students;
+                setClasses(classesResponse.data.map((classItem) => {
+                    const studentsInClass = students.filter((student) => student.classId === classItem.id);
+                    return {
+                        ...classItem,
+                        studentsOnAttachment: studentsInClass.filter((student) => student.attachmentStatus === 'Active').length,
+                        totalStudents: studentsInClass.length
+                    };
+                }));
+                setDepartments(departmentsResponse.data.map((department) => department.name));
             } catch (error) {
                 console.error('Error fetching classes:', error);
+                alert(error.response?.data?.message || 'Failed to load classes');
             } finally {
                 setLoading(false);
             }

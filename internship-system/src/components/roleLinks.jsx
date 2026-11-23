@@ -24,6 +24,9 @@ export const commonLinks = {
   teacher: [
     { path: "/teacher", label: "Dashboard", icon: <Home size={18} /> },
   ],
+  company_supervisor: [
+    { path: "/company-supervisor", label: "Dashboard", icon: <Home size={18} /> },
+  ],
   student: [
     { path: "/student", label: "Dashboard", icon: <Home size={18} /> },
   ],
@@ -64,6 +67,13 @@ export const roleBasedLinks = {
       path: "/teacher/attendance", 
       label: "Attendance", 
       icon: <CalendarCheck size={18} /> 
+    },
+  ],
+  company_supervisor: [
+    {
+      path: "/company-supervisor/attachment-view",
+      label: "Attachment View",
+      icon: <BookOpen size={18} />,
     },
   ],
   student: [
